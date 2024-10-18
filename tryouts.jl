@@ -1,7 +1,6 @@
 using TensorKit, KrylovKit, OptimKit
 using PEPSKit
 
-
 dims = (3, 4, 5, 2, 6, 7)  # Example dimensions for each of the 6 indices
 
 # Create a random tensor with the specified dimensions

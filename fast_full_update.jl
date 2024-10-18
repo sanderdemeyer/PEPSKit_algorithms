@@ -42,10 +42,10 @@ end
 function apply_env_south_ctmrg(psi, env, alg)
     psi, env = apply_ctmrg(psi, env, alg)
 
-    C4 = env.corners[4,1,1]
-    C3 = env.corners[3,1,2]
-    TD3 = env.edges[3,1,1]
-    TC3 = env.edges[3,1,2]
+    # C4 = env.corners[4,1,1]
+    # C3 = env.corners[3,1,2]
+    # TD3 = env.edges[3,1,1]
+    # TC3 = env.edges[3,1,2]
 
     # C4 = env.corners[4,2,2]
     # C3 = env.corners[3,2,1]
@@ -57,6 +57,11 @@ function apply_env_south_ctmrg(psi, env, alg)
     # TD3 = env.edges[3,2,2]
     # TC3 = env.edges[3,1,2]
 
+    C4 = env.corners[4,1,2]
+    C3 = env.corners[3,1,1]
+    TD3 = env.edges[3,1,1]
+    TC3 = env.edges[3,1,2]
+
     @tensor E5[-1 -2 -3; -4] := TC3[1 -2 -3; -4] * C3[-1; 1]
     @tensor E6[-1 -2 -3; -4] := C4[1; -4] * TD3[-1 -2 -3; 1]
     return (E5, E6)
@@ -66,17 +71,17 @@ function apply_environment_south(psi, env, χenv)
     PEPSKit.@autoopt @tensor south[χW DDb DDa; DCa DCb χE] := psi[2,1][p1; DDa D1 D2 D3] * psi[2,2][p2; DCa D7 D8 D1] * 
     conj(psi[2,1][p1; DDb D4 D5 D6]) * conj(psi[2,2][p2; DCb D9 D10 D4]) * 
     env.edges[4,2,2][χSW; D3 D6 χW] * env.corners[4,2,1][χ1; χSW] * 
-    env.edges[3,1,1][χ2; D2 D5 χ1] * env.edges[3,2,1][χ3; D8 D10 χ2] *
-    env.edges[2,1,2][χE; D7 D9 χSE] * env.corners[3,1,1][χSE; χ3]
+    env.edges[3,1,1][χ2; D2 D5 χ1] * env.edges[3,1,2][χ3; D8 D10 χ2] *
+    env.edges[2,2,1][χE; D7 D9 χSE] * env.corners[3,1,1][χSE; χ3]
     
-    U, S, E5 = tsvd(south, trunc = truncdim(χenv))
+    U, S, E5 = tsvd(south)
     E5 = permute(E5, ((4,2,3), (1,)))
     @tensor E6[-1 -2 -3; -4] := U[-4 -3 -2; 1] * S[1; -1]
     # @tensor E4[-4; -3 -2 -1] := U[-4 -2 -3; 1] * S[1; -1]
     return E5, E6
 end
 
-function get_reduced_update_tensors_fix_B(envs, X, aR, B, B̃, U)
+function get_reduced_update_tensors_fix_B_hor(envs, X, aR, B, B̃, U)
     (E1, E2, E3, E4, E5, E6) = envs
 
     # PEPSKit.@autoopt @tensor R[DLa DLb; DRa DRb] := E1[χSW DE1a DE1b; χNW] *
@@ -98,7 +103,7 @@ function get_reduced_update_tensors_fix_B(envs, X, aR, B, B̃, U)
     return R, S
 end
 
-function get_reduced_update_tensors_fix_A(envs, Y, bL, A, Ã, U)
+function get_reduced_update_tensors_fix_A_hor(envs, Y, bL, A, Ã, U)
     (E1, E2, E3, E4, E5, E6) = envs
 
     PEPSKit.@autoopt @tensor R[DLb DRb; DLa DRa] := E1[χSW DE1a DE1b; χNW] *
@@ -140,7 +145,7 @@ function reduced_update_OLD(psi, env, δ)
     return aRnew2
 end
 
-function decompose_peps(psi)
+function decompose_peps_hor(psi)
     X, aR = leftorth(psi[1,1], (Tuple(setdiff(2:5, 3)), (1, 3)), alg = QR())
     bL, Y = rightorth(psi[1,2], ((1, 5), Tuple(setdiff(2:5, 5))), alg = LQ())
     return (X, aR, bL, Y)
@@ -231,7 +236,7 @@ function update_link(psi, env, χenv, δ, alg)
     return 0
 end
 
-# update_link(psi, env, χenv, δ, ctm_alg)
+update_link(psi, env, χenv, δ, ctm_alg)
 
 # reduced_update(psi[1,1], psi[1,2], env)
 
@@ -240,14 +245,20 @@ end
 # X, aR = leftorth(test, (Tuple(setdiff(2:5, left_index)), (1, left_index)), alg = QR())
 # bL, Y = rightorth(test, ((1, right_index), Tuple(setdiff(2:5, right_index))), alg = LQ())
 
-psi2 = copy(psi)
+# psi2 = copy(psi)
 
-(E5a, E6a) = apply_env_south_ctmrg(psi, env, ctm_alg)
+# (E5a, E6a) = apply_env_south_ctmrg(psi, env, ctm_alg)
 
-(E5b, E6b) = apply_environment_south(psi2, env, χenv)
+# (E5b, E6b) = apply_environment_south(psi2, env, χenv)
 
-@tensor southa[-1 -2 -3 -4 -5; -6] := E5a[-1 -2 -3; 1] * E6a[1 -4 -5; -6]
-@tensor southb[-1 -2 -3 -4 -5; -6] := E5b[-1 -2 -3; 1] * E6b[1 -4 -5; -6]
+# @tensor southa[-1 -2 -3 -4 -5; -6] := E5a[-1 -2 -3; 1] * E6a[1 -4 -5; -6]
+# @tensor southb[-1 -2 -3 -4 -5; -6] := E5b[-1 -2 -3; 1] * E6b[1 -4 -5; -6]
 
-println(norm(southa-southb))
+# # permute(southa, ((1, 2, 3, 4, 5), (6,)))
+# # permute(southa, ((1, 4, 3, 2, 5), (6,)))
+# # permute(southa, ((1, 2, 5, 4, 3), (6,)))
+# permute(southa, ((1, 4, 5, 2, 3), (6,)))
 
+# println(norm((1/norm(southa)*southa-(1/norm(southb))*southb)))
+
+# println("Done")
