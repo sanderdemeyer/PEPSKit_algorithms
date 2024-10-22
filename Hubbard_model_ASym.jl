@@ -80,7 +80,8 @@ opt_alg = PEPSOptimize(;
     reuse_env=true,
 )
 
-env_init = leading_boundary(env0, psi_init, ctm_alg);
+# env_init = leading_boundary(env0, psi_init, ctm_alg);
 
 maxiter = 200
-result = iterate(psi_init, h, opt_alg, env_init, maxiter)
+result = iterate(psi_init, h, opt_alg, env0, maxiter)
+# result = iterate(psi_init, h, opt_alg, env_init, maxiter)
