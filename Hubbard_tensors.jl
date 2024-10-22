@@ -10,6 +10,43 @@ function SymSpace(P,Q,spin)
     return I, Ps
 end
 
+function ASymSpace()
+    I = fℤ₂
+    Ps = Vect[I]((0) => 2, (1) => 2)
+    return I, Ps
+end
+
+function ASym_Hopping()
+    I, Ps = ASymSpace()
+    Vodd = Vect[I]((1) => 1)
+
+    c⁺u = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
+    blocks(c⁺u)[I((1))] .= [1 0; 0 0]
+    blocks(c⁺u)[I((0))] .= [0 0; 0 1]
+
+    c⁺d = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
+    blocks(c⁺d)[I((1))] .= [0 0; 1 0]
+    blocks(c⁺d)[I((0))] .= [0 0; -1 0] # [0 0; -1 0]
+
+    cu = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
+    blocks(cu)[I((1))] .= [1 0; 0 0]
+    blocks(cu)[I((0))] .= [0 0; 0 1]
+
+    cd = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
+    blocks(cd)[I((1))] .= [0 1; 0 0] 
+    blocks(cd)[I((0))] .= [0 -1; 0 0] # [0 -1; 0 0]
+
+    @planar twosite_up[-1 -2; -3 -4] := c⁺u[-1; -3 1] * cu[1 -2; -4]
+    @planar twosite_down[-1 -2; -3 -4] := c⁺d[-1; -3 1] * cd[1 -2; -4]
+    twosite = twosite_up + twosite_down
+
+    @tensor nup[-1; -2] := cu[2 1; -2] * c⁺u[-1; 1 2]
+    @tensor ndown[-1; -2] := cd[2 1; -2] * c⁺d[-1; 1 2]
+    n = nup + ndown
+
+    return twosite, nup, ndown
+end
+
 function Hopping(P,Q,spin)
     I, Ps = SymSpace(P,Q,spin)
 
@@ -34,6 +71,10 @@ function Hopping(P,Q,spin)
         @planar twosite_up[-1 -2; -3 -4] := c⁺u[-1; -3 1] * cu[1 -2; -4]
         @planar twosite_down[-1 -2; -3 -4] := c⁺d[-1; -3 1] * cd[1 -2; -4]
         twosite = twosite_up + twosite_down
+
+        @tensor nup[-1; -2] := cu[2 1; -2] * c⁺u[-1; 1 2]
+        @tensor ndown[-1; -2] := cd[2 1; -2] * c⁺d[-1; 1 2]
+        n = nup + ndown
     else
         Vs = Vect[I]((1, Q, 1 // 2) => 1)
 
@@ -49,8 +90,14 @@ function Hopping(P,Q,spin)
 
         @tensor n[-1; -2] := c[2 1; -2] * c⁺[-1; 1 2]
     end
+    return twosite, n
+end
 
-    return twosite
+function ASym_OSInteraction()
+    I, Ps = ASymSpace()
+    onesite = TensorMap(zeros, ComplexF64, Ps ← Ps)
+    blocks(onesite)[I((0))] .= [0 0; 0 1]
+    return onesite
 end
 
 function OSInteraction(P,Q,spin)
