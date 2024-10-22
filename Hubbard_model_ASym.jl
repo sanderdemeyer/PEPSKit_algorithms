@@ -12,11 +12,13 @@ include("spin_tensors.jl")
 
 function iterate(psi_init, h, opt_alg, env_init, maxiter)
     io = open("check_energies_Hubbard_ASym.csv", "w")
-    result = fixedpoint(psi_init, h, opt_alg, env_init)
-    writedlm(io, [1 result.E result.grad])
+    # result = fixedpoint(psi_init, h, opt_alg, env_init)
+    writedlm(io, [1 5 0.5])
+    # writedlm(io, [1 result.E result.grad])
     for i = 2:maxiter
-        result = fixedpoint(result.E, h, opt_alg, result.env)
-        writedlm(io, [i result.E result.grad])
+        # result = fixedpoint(result.peps, h, opt_alg, result.env)
+        # writedlm(io, [i result.E result.grad])
+        writedlm(io, [i 5+i 0.5/(2^i)])
     end
     close(io)
 end
