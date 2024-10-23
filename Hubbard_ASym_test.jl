@@ -51,23 +51,22 @@ lattice_size = 1
 # c⁺c⁻sym, nsym = Hopping(P, Q, spin)
 # onsitesym = U*OSInteraction(P, Q, spin)
 
-pspace = Vect[fℤ₂]((0) => 1)
-lattice = fill(pspace, lattice_size, lattice_size)
+Ps = Vect[fℤ₂]((0) => 1, (1) => 1)
+I = fℤ₂
+Vodd = Vect[I]((1) => 1)
+
+lattice = fill(Ps, lattice_size, lattice_size)
 c⁺u = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
-blocks(c⁺u)[I((1))] .= [1 0; 0 0]
-blocks(c⁺u)[I((0))] .= [0 0; 0 1]
+blocks(c⁺u)[I((0))] .= 1
 
 c⁺d = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
-blocks(c⁺d)[I((1))] .= [0 0; 1 0]
-blocks(c⁺d)[I((0))] .= [0 0; -1 0] # [0 0; -1 0]
+blocks(c⁺d)[I((0))] .= 1 # [0 0; -1 0]
 
 cu = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
-blocks(cu)[I((1))] .= [1 0; 0 0]
-blocks(cu)[I((0))] .= [0 0; 0 1]
+blocks(cu)[I((0))] .= 1
 
 cd = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
-blocks(cd)[I((1))] .= [0 1; 0 0] 
-blocks(cd)[I((0))] .= [0 -1; 0 0] # [0 -1; 0 0]
+blocks(cd)[I((0))] .= 1 # [0 -1; 0 0]
 
 @planar twosite_up[-1 -2; -3 -4] := c⁺u[-1; -3 1] * cu[1 -2; -4]
 @planar twosite_down[-1 -2; -3 -4] := c⁺d[-1; -3 1] * cd[1 -2; -4]
