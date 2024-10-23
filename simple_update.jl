@@ -1,12 +1,13 @@
 include("utility.jl")
+using JLD2
 
-dτ = 0.1
-D = 4
+dτ = 1e-5
+D = 2
 χ = D
-χenv = 12
+χenv = 2
 
 unitcell = (2, 2)
-max_iterations = 300
+max_iterations = 3000
 
 Js = (-1, 1, -1)
 
@@ -15,7 +16,7 @@ ctm_alg = CTMRG(;
     miniter=4,
     maxiter=100,
     verbosity=2,
-    svd_alg=SVDAdjoint(; fwd_alg=TensorKit.SVD(), rrule_alg=GMRES(; tol=1e-10)),
+    svd_alg=SVDAdjoint(; fwd_alg=TensorKit.SVD(), rrule_alg=Arnoldi(; tol=1e-10)),
     ctmrgscheme=:simultaneous,
 )
 
@@ -174,9 +175,9 @@ function simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; χenv = 3*�
             psi = rotate_psi_l90(psi)
             lambdas = rotate_lambdas_l90(lambdas)
         end
-        if mod(i, 5) == 0
+        if mod(i, 50) == 0
             energy = get_energy(deepcopy(psi), H, ctm_alg, χenv)
-            println("Energy after SU is $(energy)")
+            println("Energy after SU step $(i) is $(energy)")
             psi = normalize(psi)
             push!(energies, energy)
         end
@@ -184,4 +185,62 @@ function simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; χenv = 3*�
     return (psi, lambdas, energies)
 end
 
+function do_CTMRG(psi, H, ctm_alg, χenv)
+
+    opt_alg = PEPSOptimize(;
+        boundary_alg=ctm_alg,
+        optimizer=LBFGS(4; maxiter=25, gradtol=1e-3, verbosity=2),
+        gradient_alg=LinSolver(; solver=GMRES(; tol=1e-6), iterscheme=:fixed),
+        reuse_env=true,)
+        
+    env0 = CTMRGEnv(psi, ComplexSpace(χenv));
+    env_init = leading_boundary(env0, psi, ctm_alg);
+    println("initial norm = $(norm(psi, env_init))")
+    result = fixedpoint(psi, H, opt_alg, env_init)    
+    println("Final norm = $(norm(result.peps, result.env))")
+    println("Energy after CTMRG is $(result.E)")
+    return  result.peps, result.E_history
+end
+
+mkdir("test_SU")
+
+(psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
+file = jldopen("test_SU/1_CTMRG", "w")
+file["energies"] = energies
+close(file)
+
 (psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
+file = jldopen("test_SU/1_SU", "w")
+file["energies"] = energies
+close(file)
+
+#=
+(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
+file = jldopen("test_SU/2_SU", "w")
+file["energies"] = energies
+close(file)
+(psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
+file = jldopen("test_SU/2_CTMRG", "w")
+file["energies"] = energies
+close(file)
+(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
+file = jldopen("test_SU/3_SU", "w")
+file["energies"] = energies
+close(file)
+(psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
+file = jldopen("test_SU/3_CTMRG", "w")
+file["energies"] = energies
+close(file)
+(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
+file = jldopen("test_SU/4_SU", "w")
+file["energies"] = energies
+close(file)
+(psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
+file = jldopen("test_SU/4_CTMRG", "w")
+file["energies"] = energies
+close(file)
+(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
+file = jldopen("test_SU/5_SU", "w")
+file["energies"] = energies
+close(file)
+=#
