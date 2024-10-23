@@ -14,11 +14,26 @@ function iterate(psi_init, h, opt_alg, env_init, maxiter)
     io = open("check_energies_Hubbard_ASym.csv", "w")
     result = fixedpoint(psi_init, h, opt_alg, env_init)
     println("E = $(result.E), grad = $(result.grad)")
-    writedlm(io, [1 result.E result.grad])
+    writedlm(io, [1 result.E norm(result.grad)])
+    file = jldopen("Hubbard_ASym_t_1_U_0.jld2", "w")
+    file["grad"] = copy(result.grad)
+    file["E"] = result.E
+    file["psi"] = result.peps
+    file["grad"] = result.grad
+    file["norm_grad"] = norm(result.grad)
+    close(file)
+
     for i = 2:maxiter
         result = fixedpoint(result.peps, h, opt_alg, result.env)
         println("E = $(result.E), grad = $(result.grad)")
-        writedlm(io, [i result.E result.grad])
+        writedlm(io, [i result.E norm(result.grad)])
+        file = jldopen("Hubbard_ASym_t_1_U_0.jld2", "w")
+        file["grad"] = copy(result.grad)
+        file["E"] = result.E
+        file["psi"] = result.peps
+        file["grad"] = result.grad
+        file["norm_grad"] = norm(result.grad)
+        close(file)
     end
     close(io)
 end
@@ -53,8 +68,8 @@ onsite = U*ASym_OSInteraction()
 h = nearest_neighbour_hamiltonian(lattice, twosite, onsite)
 
 
-D = 2
-χ = 8
+D = 4
+χ = 32
 
 vspace = Vect[I]((0) => D/2, (1) => D/2)
 vspace_env = Vect[I]((0) => χ/2, (1) => χ/2)
@@ -70,7 +85,7 @@ ctm_alg = CTMRG(;
     miniter=4,
     maxiter=100,
     verbosity=2,
-    svd_alg=SVDAdjoint(; fwd_alg=TensorKit.SVD(), rrule_alg=GMRES(; tol=1e-10)),
+    svd_alg=SVDAdjoint(; fwd_alg=TensorKit.SVD(), rrule_alg=Arnoldi(; tol=1e-10)),
     ctmrgscheme=:simultaneous,
 )
 opt_alg = PEPSOptimize(;

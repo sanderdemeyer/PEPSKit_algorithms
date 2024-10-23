@@ -81,7 +81,7 @@ D = 2
 vspace = Vect[I]((0) => D/2, (1) => D/2)
 vspace_env = Vect[I]((0) => χ/2, (1) => χ/2)
 
-Pspaces = fill(pspace, lattice_size, lattice_size)
+Pspaces = fill(Ps, lattice_size, lattice_size)
 Nspaces = Espaces = fill(vspace, lattice_size, lattice_size)
 
 psi_init = InfinitePEPS(randn, ComplexF64, Pspaces, Nspaces, Espaces)
