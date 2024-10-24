@@ -1,0 +1,105 @@
+using LinearAlgebra
+using Random
+using TensorKit
+using KrylovKit
+using OptimKit
+using MPSKit
+using MPSKitModels
+using DelimitedFiles
+using JLD2
+
+include("Hubbard_tensors.jl")
+
+function find_gs_half_filling(U, pspace, vspace, lattice_size, twosite_operator, onsite_operator, n; max_iterations = 100)
+    Hopping_term = @mpoham sum(twosite_operator{i,i+1} for i in vertices(InfiniteChain(lattice_size)))
+    Interaction_term = @mpoham sum(onsite_operator{i} for i in vertices(InfiniteChain(lattice_size)))
+    number_term = @mpoham sum(n{i} for i in vertices(InfiniteChain(lattice_size)))
+
+    chem_pot = @mpoham sum(n{i} for i in vertices(InfiniteChain(lattice_size)))
+
+    H_base = -t*Hopping_term + U*Interaction_term
+
+    mps = InfiniteMPS(fill(pspace, lattice_size),fill(vspace, lattice_size))
+
+
+    mu_old = 0
+    H = H_base - mu_old*chem_pot
+    (mps_old,envs,_) = find_groundstate(mps,H,VUMPS(; maxiter = 20, tol = 10^(-5)))
+    filling_old = expectation_value(mps_old, number_term)
+    mu = 1.0
+    H = H_base - mu*chem_pot
+    (mps,envs,_) = find_groundstate(mps,H,VUMPS(; maxiter = 20, tol = 10^(-5)))
+    filling = expectation_value(mps, number_term)
+
+    for i = 1:max_iterations
+        if abs(filling - 1) > 1e-2
+            mu_new = mu + (1-filling)*(mu-mu_old)/(filling-filling_old)
+            mu_old = mu
+            filling_old = filling
+            mu = mu_new
+
+            H = H_base - mu*chem_pot
+            (mps,envs,_) = find_groundstate(mps,H,VUMPS(; maxiter = 20, tol = 10^(-5)))
+            filling = expectation_value(mps, number_term)
+            println("new mu = $(mu_new) gives filling $(filling)")
+        else
+            println("Converged after $(max_iterations) iterations, mu = $(mu) and f = $(filling)")
+            return expectation_value(mps, H_base), mu, filling
+        end
+    end
+    @warn "Not converged after $(max_iterations) iterations, mu = $(mu) and f = $(filling)"
+    return expectation_value(mps, H_base), mu, filling
+end
+
+
+t = 1
+U = 0 # => E = -1.62, check met Mortier et al 2023
+mu = 10
+# U1 ipv SU2 for spin
+# gmres to arnoldi in svdsolve
+# without symmetries?
+# low bond dimension wo symmetries
+
+T = ComplexF64
+
+lattice_size = 2
+
+I, pspace = ASymSpace()
+
+lattice = fill(pspace, lattice_size, lattice_size)
+
+c⁺c⁻, nup, ndown = ASym_Hopping()
+twosite_operator = (c⁺c⁻ + c⁺c⁻')
+onsite_operator = ASym_OSInteraction()
+
+
+D_start = 40
+
+
+vspace = Vect[I]((0) => D_start/2, (1) => D_start/2)
+
+Hopping_term = @mpoham sum(twosite_operator{i,i+1} for i in vertices(InfiniteChain(lattice_size)))
+Interaction_term = @mpoham sum(onsite_operator{i} for i in vertices(InfiniteChain(lattice_size)))
+n = nup + ndown
+number_term = @mpoham sum(n{i} for i in vertices(InfiniteChain(lattice_size)))
+
+chem_pot = @mpoham sum(n{i} for i in vertices(InfiniteChain(lattice_size)))
+
+energies = []
+mus = []
+fillings = []
+
+for U in [1.0*i for i = 0:10]
+    println("Started for U = $(U)")
+    E, mu, filling = find_gs_half_filling(U, pspace, vspace, lattice_size, twosite_operator, onsite_operator, n)
+    
+    push!(energies, E)
+    push!(mus, mu)
+    push!(fillings, filling)
+end
+
+file = jldopen("test_Hubbard_1D_t_1_U_0to10_D_40_with_signs", "w")
+file["energies"] = energies
+file["mus"] = mus
+file["fillings"] = fillings
+close(file)
