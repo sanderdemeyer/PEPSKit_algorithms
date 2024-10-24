@@ -1,33 +1,6 @@
 include("utility.jl")
 using JLD2
 
-dτ = 1e-4
-D = 2
-χ = D
-χenv = 2
-
-unitcell = (2, 2)
-max_iterations = 30000
-
-Js = (-1, 1, -1)
-
-ctm_alg = CTMRG(;
-    tol=1e-10,
-    miniter=4,
-    maxiter=100,
-    verbosity=2,
-    svd_alg=SVDAdjoint(; fwd_alg=TensorKit.SVD(), rrule_alg=Arnoldi(; tol=1e-10)),
-    ctmrgscheme=:simultaneous,
-)
-
-H = heisenberg_XYZ(InfiniteSquare(unitcell...); Jx=-1, Jy=1, Jz=-1) # sublattice rotation to obtain single-site unit cell
-# gs energy should be -0.6694421 x unitcell = -2.6777684
-# For D = 2, \chi = 2, \chienv = 2, I get E = -0.65484
-
-
-psi = normalize(InfinitePEPS(2, D; unitcell))
-# psi = (1/norm(psi))*psi # Good normalization?
-
 function rotate_psi_l90(psi)
     psi_new = copy(psi)
     psi_new[1,1] = rotl90(psi[1,2])
@@ -226,45 +199,30 @@ function do_CTMRG(psi, H, ctm_alg, χenv)
     return  result.peps, result.E_history
 end
 
-mkdir("test_SU")
+dτ = 1e-4
+unitcell = (2, 2)
+max_iterations = 20000
+Js = (-1, 1, -1)
+ctm_alg = CTMRG(;
+    tol=1e-10,
+    miniter=4,
+    maxiter=100,
+    verbosity=2,
+    svd_alg=SVDAdjoint(; fwd_alg=TensorKit.SVD(), rrule_alg=Arnoldi(; tol=1e-10)),
+    ctmrgscheme=:simultaneous,
+)
+H = heisenberg_XYZ(InfiniteSquare(unitcell...); Jx=-1, Jy=1, Jz=-1) # sublattice rotation to obtain single-site unit cell
 
-# (psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
-# file = jldopen("test_SU/1_CTMRG", "w")
-# file["energies"] = energies
-# close(file)
+mkdir("simple_update_test")
 
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
-file = jldopen("test_SU/1_SU", "w")
-file["energies"] = energies
-close(file)
+for D = [2 4 6]
+    for χenv = [8 16 32]
+        χ = D
+        psi = normalize(InfinitePEPS(2, D; unitcell))
 
-#=
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
-file = jldopen("test_SU/2_SU", "w")
-file["energies"] = energies
-close(file)
-(psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
-file = jldopen("test_SU/2_CTMRG", "w")
-file["energies"] = energies
-close(file)
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
-file = jldopen("test_SU/3_SU", "w")
-file["energies"] = energies
-close(file)
-(psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
-file = jldopen("test_SU/3_CTMRG", "w")
-file["energies"] = energies
-close(file)
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
-file = jldopen("test_SU/4_SU", "w")
-file["energies"] = energies
-close(file)
-(psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
-file = jldopen("test_SU/4_CTMRG", "w")
-file["energies"] = energies
-close(file)
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
-file = jldopen("test_SU/5_SU", "w")
-file["energies"] = energies
-close(file)
-=#
+        (psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
+        file = jldopen("simple_update_test/D_$(D)_chienv_$(χenv)", "w")
+        file["energies"] = energies
+        close(file)
+    end
+end
