@@ -21,6 +21,7 @@ ctm_alg = CTMRG(;
 )
 
 H = heisenberg_XYZ(InfiniteSquare(unitcell...); Jx=-1, Jy=1, Jz=-1) # sublattice rotation to obtain single-site unit cell
+# gs energy should be -0.6694421 x unitcell = -2.6777684
 
 psi = normalize(InfinitePEPS(2, D; unitcell))
 # psi = (1/norm(psi))*psi # Good normalization?
@@ -61,7 +62,7 @@ function rotate_lambdas_l90(lambdas; permutation = "forward")
 end
 
 function absorb_lambdas(left, right, lambdas; inverse = false)
-    if inverse # Not yet changed to new convention
+    if inverse
         @tensor left_t[-1; -2 -3 -4 -5] := left[-1; 1 4 2 3] * inv(sqrt(lambdas[1]))[1; -2] * inv(sqrt(lambdas[8]))[-4; 2] * inv(sqrt(lambdas[3]))[-5; 3] * sqrt(lambdas[2])[4; -3]
         @tensor right_t[-1; -2 -3 -4 -5] := right[-1; 1 2 3 4] * inv(sqrt(lambdas[5]))[1; -2] * inv(sqrt(lambdas[3]))[2; -3] * inv(sqrt(lambdas[4]))[-4; 3] * sqrt(lambdas[2])[-5; 4]
     else
@@ -129,7 +130,7 @@ function simple_update_north(psi, lambdas, dτ, χ, Js, base_space)
     return (psi, lambdas)
 end
 
-function translate_psi(psi)
+function translate_psi_hor(psi)
     psi_new = copy(psi)
     psi_new[1,1] = psi[1,2]
     psi_new[1,2] = psi[1,1]
@@ -138,7 +139,16 @@ function translate_psi(psi)
     return psi_new
 end
 
-function translate_lambdas(lambdas)
+function translate_psi_diag(psi)
+    psi_new = copy(psi)
+    psi_new[1,1] = psi[2,2]
+    psi_new[1,2] = psi[2,1]
+    psi_new[2,1] = psi[1,2]
+    psi_new[2,2] = psi[1,1]
+    return psi_new
+end
+
+function translate_lambdas_hor(lambdas)
     return [lambdas[5],
         lambdas[3],
         lambdas[2],
@@ -147,6 +157,18 @@ function translate_lambdas(lambdas)
         lambdas[7],
         lambdas[6],
         lambdas[4]
+    ]
+end
+
+function translate_lambdas_diag(lambdas)
+    return [lambdas[4],
+        lambdas[7],
+        lambdas[6],
+        lambdas[1],
+        lambdas[8],
+        lambdas[3],
+        lambdas[2],
+        lambdas[5]
     ]
 end
 
@@ -168,8 +190,8 @@ function simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; χenv = 3*�
             psi = rotate_psi_l90(psi)
             lambdas = rotate_lambdas_l90(lambdas)
         end
-        psi = translate_psi(psi)
-        lambdas = translate_lambdas(lambdas)
+        psi = translate_psi_diag(psi)
+        lambdas = translate_lambdas_diag(lambdas)
         for i = 1:4
             (psi, lambdas) = simple_update_north(psi, lambdas, dτ, χ, Js, base_space)
             psi = rotate_psi_l90(psi)
@@ -189,7 +211,7 @@ function do_CTMRG(psi, H, ctm_alg, χenv)
 
     opt_alg = PEPSOptimize(;
         boundary_alg=ctm_alg,
-        optimizer=LBFGS(4; maxiter=25, gradtol=1e-3, verbosity=2),
+        optimizer=LBFGS(4; maxiter=10, gradtol=1e-3, verbosity=2),
         gradient_alg=LinSolver(; solver=GMRES(; tol=1e-6), iterscheme=:fixed),
         reuse_env=true,)
         
