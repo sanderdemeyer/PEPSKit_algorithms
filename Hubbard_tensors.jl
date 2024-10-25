@@ -22,19 +22,19 @@ function ASym_Hopping()
 
     c⁺u = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
     blocks(c⁺u)[I((1))] .= [1 0; 0 0]
-    blocks(c⁺u)[I((0))] .= [0 0; 0 1] # connected met cu block (0)
+    blocks(c⁺u)[I((0))] .= [0 0; 0 1]
 
     c⁺d = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
     blocks(c⁺d)[I((1))] .= [0 0; 1 0]
-    blocks(c⁺d)[I((0))] .= [0 0; -1 0] # [0 0; -1 0] # connected met cd block (0)
+    blocks(c⁺d)[I((0))] .= [0 0; -1 0]
 
-    cu = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
-    blocks(cu)[I((1))] .= [1 0; 0 0]
-    blocks(cu)[I((0))] .= [0 0; 0 -1] # [0 0; 0 1] # connected met cpu block (0)
+    # cuold = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
+    # blocks(cuold)[I((1))] .= [1 0; 0 0]
+    # blocks(cuold)[I((0))] .= [0 0; 0 -1] # [0 0; 0 1]
 
-    cd = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
-    blocks(cd)[I((1))] .= [0 1; 0 0] 
-    blocks(cd)[I((0))] .= [0 -1; 0 0] # [0 -1; 0 0] # connected met cpd block (0)
+    # cdold = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
+    # blocks(cdold)[I((1))] .= [0 1; 0 0] 
+    # blocks(cdold)[I((0))] .= [0 1; 0 0] # [0 -1; 0 0]
 
     cu = permute(c⁺u', ((2,1), (3,)))
     cd = permute(c⁺d', ((2,1), (3,)))
@@ -43,11 +43,9 @@ function ASym_Hopping()
     @planar twosite_down[-1 -2; -3 -4] := c⁺d[-1; -3 1] * cd[1 -2; -4]
     twosite = twosite_up + twosite_down
 
-    @tensor nup[-1; -2] := cu[2 1; -2] * c⁺u[-1; 1 2]
-    @tensor ndown[-1; -2] := cd[2 1; -2] * c⁺d[-1; 1 2]
-    n = nup + ndown
-
-    return twosite, nup, ndown
+    # @tensor nup[-1; -2] := cu[2 1; -2] * c⁺u[-1; 1 2]
+    # @tensor ndown[-1; -2] := cd[2 1; -2] * c⁺d[-1; 1 2]
+    return twosite
 end
 
 function Hopping(P,Q,spin)

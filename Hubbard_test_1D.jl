@@ -71,10 +71,6 @@ I, pspace = ASymSpace()
 
 lattice = fill(pspace, lattice_size, lattice_size)
 
-twosite, nup, ndown = ASym_Hopping()
-
-cunew = permute(c⁺u', ((2,1), (3,)))
-# cunew = permute(cunew, ((3, 1), (2,)))
 c⁺c⁻, nup, ndown = ASym_Hopping()
 twosite_operator = (c⁺c⁻ + c⁺c⁻')
 onsite_operator = ASym_OSInteraction()
@@ -104,7 +100,7 @@ mus = []
 fillings = []
 for U in [1.0*i for i = 0:0]
     println("Started for U = $(U)")
-    mps, E, mu, filling = find_gs_half_filling(U, pspace, vspace, lattice_size, twosite_operator, onsite_operator, n)
+    E, mu, filling = find_gs_half_filling(U, pspace, vspace, lattice_size, twosite_operator, onsite_operator, n)
     
     push!(energies, E)
     push!(mus, mu)
