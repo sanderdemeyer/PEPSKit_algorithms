@@ -2,7 +2,7 @@ include("utility.jl")
 include("Hubbard_tensors.jl")
 using JLD2
 
-dτ = 1e-4
+dτ = 1e-5
 D = 2
 χ = D
 χenv = 40
@@ -226,15 +226,13 @@ function simple_update(psi, H, dτ, vspace, max_iterations, ctm_alg, twosite_ope
     return (psi, lambdas, energies)
 end
 
-function do_CTMRG(psi, H, ctm_alg, χenv)
-    @error "fix to Hubbard"
+function do_CTMRG(psi, H, ctm_alg, env0)
     opt_alg = PEPSOptimize(;
         boundary_alg=ctm_alg,
         optimizer=LBFGS(4; maxiter=10, gradtol=1e-3, verbosity=2),
         gradient_alg=LinSolver(; solver=GMRES(; tol=1e-6), iterscheme=:fixed),
         reuse_env=true,)
         
-    env0 = CTMRGEnv(psi, ComplexSpace(χenv));
     env_init = leading_boundary(env0, psi, ctm_alg);
     println("initial norm = $(norm(psi, env_init))")
     result = fixedpoint(psi, H, opt_alg, env_init)    
@@ -243,6 +241,8 @@ function do_CTMRG(psi, H, ctm_alg, χenv)
     return  result.peps, result.E_history
 end
 
+
+(psi, E_history) = do_CTMRG(psi, H, ctm_alg, env0)
 (psi, lambdas, energies) = simple_update(psi, H, dτ, vspace, max_iterations, ctm_alg, twosite_operator; translate = true, χenv = χenv);
 
 file = jldopen("Hubbard_t_1_U_0_SU.jld2", "w")
