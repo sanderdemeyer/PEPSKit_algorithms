@@ -11,11 +11,12 @@ include("Hubbard_tensors.jl")
 include("spin_tensors.jl")
 
 function iterate(psi_init, h, opt_alg, env_init, maxiter)
-    io = open("check_energies_Hubbard_ASym.csv", "w")
+    io = open("Hubbard_t_1_U_0.csv", "w")
+    mkdir("Hubbard_t_1_U_0_tensors")
     result = fixedpoint(psi_init, h, opt_alg, env_init)
-    println("E = $(result.E), grad = $(result.grad)")
     writedlm(io, [1 result.E norm(result.grad)])
-    file = jldopen("Hubbard_ASym_test_t_1_U_0.jld2", "w")
+    close(io)
+    file = jldopen("Hubbard_t_1_U_0_tensors/1.jld2", "w")
     file["grad"] = copy(result.grad)
     file["E"] = result.E
     file["psi"] = result.peps
@@ -27,7 +28,8 @@ function iterate(psi_init, h, opt_alg, env_init, maxiter)
         result = fixedpoint(result.peps, h, opt_alg, result.env)
         println("E = $(result.E), grad = $(result.grad)")
         writedlm(io, [i result.E norm(result.grad)])
-        file = jldopen("Hubbard_ASym_test_t_1_U_0.jld2", "w")
+        close(io)
+        file = jldopen("Hubbard_t_1_U_0_tensors/$(i).jld2", "w")
         file["grad"] = copy(result.grad)
         file["E"] = result.E
         file["psi"] = result.peps
@@ -39,44 +41,23 @@ function iterate(psi_init, h, opt_alg, env_init, maxiter)
 end
 
 t = 1
-
+U = 0
 T = ComplexF64
 
-lattice_size = 1
+lattice_size = 2
 
-# P = 1
-# Q = 1
-# spin = true
-# Isym, pspacesym = SymSpace(P, Q, spin)
-# c⁺c⁻sym, nsym = Hopping(P, Q, spin)
-# onsitesym = U*OSInteraction(P, Q, spin)
+I, pspace = ASymSpace()
 
-Ps = Vect[fℤ₂]((0) => 1, (1) => 1)
-I = fℤ₂
-Vodd = Vect[I]((1) => 1)
+lattice = fill(pspace, lattice_size, lattice_size)
 
-lattice = fill(Ps, lattice_size, lattice_size)
-c⁺u = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
-blocks(c⁺u)[I((0))] .= 1
-
-c⁺d = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
-blocks(c⁺d)[I((0))] .= 1 # [0 0; -1 0]
-
-cu = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
-blocks(cu)[I((0))] .= 1
-
-cd = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
-blocks(cd)[I((0))] .= 1 # [0 -1; 0 0]
-
-@planar twosite_up[-1 -2; -3 -4] := c⁺u[-1; -3 1] * cu[1 -2; -4]
-@planar twosite_down[-1 -2; -3 -4] := c⁺d[-1; -3 1] * cd[1 -2; -4]
-twosite = twosite_up + twosite_down
-twosite = -(twosite + twosite')
+c⁺c⁻, nup, ndown = ASym_Hopping()
+twosite_operator = -t*(c⁺c⁻ + c⁺c⁻')
+onsite_operator = U*ASym_OSInteraction()
 
 h = nearest_neighbour_hamiltonian(lattice, twosite)
 
 D = 2
-χ = 2
+χ = 4
 
 vspace = Vect[I]((0) => D/2, (1) => D/2)
 vspace_env = Vect[I]((0) => χ/2, (1) => χ/2)
@@ -97,7 +78,7 @@ ctm_alg = CTMRG(;
 )
 opt_alg = PEPSOptimize(;
     boundary_alg=ctm_alg,
-    optimizer=LBFGS(4; maxiter=1, gradtol=1e-3, verbosity=2),
+    optimizer=LBFGS(4; maxiter=1, gradtol=1e-4, verbosity=2),
     gradient_alg=LinSolver(; solver=GMRES(; tol=1e-6), iterscheme=:fixed),
     reuse_env=true,
 )
