@@ -4,8 +4,7 @@ using JLD2
 
 dτ = 1e-5
 D = 2
-χ = D
-χenv = 40
+χenv = 16
 
 lattice_size = 2
 
@@ -90,7 +89,7 @@ function absorb_lambdas(left, right, lambdas; inverse = false)
 end
 
 
-function simple_update_north(psi, lambdas, dτ, χ, twosite_operator, base_space)
+function simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space)
     U = get_gate_Hubbard(dτ, twosite_operator)
 
     left = psi[1,1]
@@ -120,7 +119,7 @@ function simple_update_north(psi, lambdas, dτ, χ, twosite_operator, base_space
 
     @tensor Θ[-1 -2; -3 -4] := R[1 2; -1] * L[4 3; -4] * U[-2 -3; 1 4] * lambdas[2][2; 3]
 
-    (R_new, lambda_new, L_new) = tsvd(Θ, trunc = truncdim(χ))
+    (R_new, lambda_new, L_new) = tsvd(Θ, trunc = truncdim(D))
 
     current_space = left.dom[2]
     I₁ = isometry(base_space, current_space)
@@ -196,7 +195,7 @@ function get_energy(psi, H, ctm_alg, χenv)
     return expectation_value(psi, H, env)
 end
 
-function simple_update(psi, H, dτ, vspace, max_iterations, ctm_alg, twosite_operator; χenv = 3*χ, translate = false)
+function simple_update(psi, H, vspace, dτ, D, χenv, max_iterations, ctm_alg, twosite_operator; translate = false)
     lambdas = fill(id(vspace),8)
     base_space = psi[1,1].dom[2]
 
@@ -205,14 +204,14 @@ function simple_update(psi, H, dτ, vspace, max_iterations, ctm_alg, twosite_ope
     for i = 1:max_iterations
         println("Iteration i = $(i)")
         for i = 1:4
-            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, χ, twosite_operator, base_space)
+            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space)
             psi = rotate_psi_l90(psi)
             lambdas = rotate_lambdas_l90(lambdas)
         end
         psi = translate_psi_diag(psi)
         lambdas = translate_lambdas_diag(lambdas)
         for i = 1:4
-            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, χ, twosite_operator, base_space)
+            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space)
             psi = rotate_psi_l90(psi)
             lambdas = rotate_lambdas_l90(lambdas)
         end
@@ -243,8 +242,7 @@ end
 
 
 (psi, E_history) = do_CTMRG(psi, H, ctm_alg, env0)
-(psi, lambdas, energies) = simple_update(psi, H, dτ, vspace, max_iterations, ctm_alg, twosite_operator; translate = true, χenv = χenv);
-
+(psi, lambdas, energies) = simple_update(psi, H, vspace, dτ, D, χenv, max_iterations, ctm_alg, twosite_operator; translate = true);
 file = jldopen("Hubbard_t_1_U_0_SU.jld2", "w")
 file["energies"] = energies
 close(file)
