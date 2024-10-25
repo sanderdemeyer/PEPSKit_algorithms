@@ -12,6 +12,10 @@ function get_gate(dτ, Js)
     return exp(-dτ*H)
 end
 
+function get_gate_Hubbard(dτ, twosite)
+    return exp(-dτ*(twosite))
+end
+
 function update_alternating(psi, env, U, c; max_iterations = 1000)
     # check how the distance decreases?
 

@@ -1,15 +1,19 @@
 include("utility.jl")
+include("Hubbard_tensors.jl")
 using JLD2
 
 dτ = 1e-4
 D = 2
 χ = D
-χenv = 2
+χenv = 40
 
-unitcell = (2, 2)
+lattice_size = 2
+
+unitcell = (lattice_size, lattice_size)
 max_iterations = 30000
 
-Js = (-1, 1, -1)
+t = 1.0
+U = 0.0
 
 ctm_alg = CTMRG(;
     tol=1e-10,
@@ -28,19 +32,16 @@ c⁺c⁻ = ASym_Hopping()
 twosite_operator = -t*(c⁺c⁻ + c⁺c⁻')
 onsite_operator = U*ASym_OSInteraction()
 
-h = nearest_neighbour_hamiltonian(lattice, twosite_operator)
-
-D = 2
-χ = 4
+H = nearest_neighbour_hamiltonian(lattice, twosite_operator)
 
 vspace = Vect[I]((0) => D/2, (1) => D/2)
-vspace_env = Vect[I]((0) => χ/2, (1) => χ/2)
+vspace_env = Vect[I]((0) => χenv/2, (1) => χenv/2)
 
 Pspaces = fill(pspace, lattice_size, lattice_size)
 Nspaces = Espaces = fill(vspace, lattice_size, lattice_size)
 
-psi_init = normalize(InfinitePEPS(randn, ComplexF64, Pspaces, Nspaces, Espaces))
-env0 = CTMRGEnv(psi_init, vspace_env)
+psi = normalize(InfinitePEPS(randn, ComplexF64, Pspaces, Nspaces, Espaces))
+env0 = CTMRGEnv(psi, vspace_env)
 
 function rotate_psi_l90(psi)
     psi_new = copy(psi)
@@ -89,8 +90,8 @@ function absorb_lambdas(left, right, lambdas; inverse = false)
 end
 
 
-function simple_update_north(psi, lambdas, dτ, χ, Js, base_space)
-    U = get_gate(dτ, Js)
+function simple_update_north(psi, lambdas, dτ, χ, twosite_operator, base_space)
+    U = get_gate_Hubbard(dτ, twosite_operator)
 
     left = psi[1,1]
     right = psi[1,2]
@@ -189,27 +190,29 @@ function translate_lambdas_diag(lambdas)
 end
 
 function get_energy(psi, H, ctm_alg, χenv)
-    env0 = CTMRGEnv(psi, ComplexSpace(χenv));
+    vspace_env = Vect[I]((0) => χenv/2, (1) => χenv/2)
+    env0 = CTMRGEnv(psi, vspace_env);
     env = leading_boundary(env0, psi, ctm_alg);
     return expectation_value(psi, H, env)
 end
 
-function simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; χenv = 3*χ, translate = false)
-    lambdas = fill(id(ℂ^χ),8)
+function simple_update(psi, H, dτ, vspace, max_iterations, ctm_alg, twosite_operator; χenv = 3*χ, translate = false)
+    lambdas = fill(id(vspace),8)
     base_space = psi[1,1].dom[2]
 
     energies = []
     # Do gauge fix
     for i = 1:max_iterations
+        println("Iteration i = $(i)")
         for i = 1:4
-            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, χ, Js, base_space)
+            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, χ, twosite_operator, base_space)
             psi = rotate_psi_l90(psi)
             lambdas = rotate_lambdas_l90(lambdas)
         end
         psi = translate_psi_diag(psi)
         lambdas = translate_lambdas_diag(lambdas)
         for i = 1:4
-            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, χ, Js, base_space)
+            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, χ, twosite_operator, base_space)
             psi = rotate_psi_l90(psi)
             lambdas = rotate_lambdas_l90(lambdas)
         end
@@ -224,7 +227,7 @@ function simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; χenv = 3*�
 end
 
 function do_CTMRG(psi, H, ctm_alg, χenv)
-
+    @error "fix to Hubbard"
     opt_alg = PEPSOptimize(;
         boundary_alg=ctm_alg,
         optimizer=LBFGS(4; maxiter=10, gradtol=1e-3, verbosity=2),
@@ -240,7 +243,7 @@ function do_CTMRG(psi, H, ctm_alg, χenv)
     return  result.peps, result.E_history
 end
 
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
+(psi, lambdas, energies) = simple_update(psi, H, dτ, vspace, max_iterations, ctm_alg, twosite_operator; translate = true, χenv = χenv);
 
 file = jldopen("Hubbard_t_1_U_0_SU.jld2", "w")
 file["energies"] = energies
