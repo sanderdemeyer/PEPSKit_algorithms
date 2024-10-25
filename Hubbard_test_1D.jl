@@ -72,15 +72,20 @@ c⁺c⁻, nup, ndown = ASym_Hopping()
 twosite_operator = (c⁺c⁻ + c⁺c⁻')
 onsite_operator = ASym_OSInteraction()
 
+particle_symmetry = Trivial
+spin_symmetry = Trivial
+twosite_operator = e_plusmin(T, particle_symmetry, spin_symmetry) + e_minplus(T, particle_symmetry, spin_symmetry)
+onsite_operator = e_number_updown(T, particle_symmetry, spin_symmetry)
+n = e_number(T, particle_symmetry, spin_symmetry)
 
 D_start = 40
 
 
 vspace = Vect[I]((0) => D_start/2, (1) => D_start/2)
 
-Hopping_term = @mpoham sum(twosite_operator{i,i+1} for i in vertices(InfiniteChain(lattice_size)))
-Interaction_term = @mpoham sum(onsite_operator{i} for i in vertices(InfiniteChain(lattice_size)))
-n = nup + ndown
+# Hopping_term = @mpoham sum(twosite_operator{i,i+1} for i in vertices(InfiniteChain(lattice_size)))
+# Interaction_term = @mpoham sum(onsite_operator{i} for i in vertices(InfiniteChain(lattice_size)))
+# n = nup + ndown
 number_term = @mpoham sum(n{i} for i in vertices(InfiniteChain(lattice_size)))
 
 chem_pot = @mpoham sum(n{i} for i in vertices(InfiniteChain(lattice_size)))
@@ -98,8 +103,13 @@ for U in [1.0*i for i = 0:10]
     push!(fillings, filling)
 end
 
-file = jldopen("test_Hubbard_1D_t_1_U_0to10_D_40_with_signs", "w")
+file = jldopen("test_Hubbard_1D_t_1_U_0to10_D_40_with_signs.jld2", "w")
 file["energies"] = energies
 file["mus"] = mus
 file["fillings"] = fillings
+close(file)
+file = jldopen("test_Hubbard_1D_t_1_U_0to10_D_40_with_signs.jld2", "r")
+energies = file["energies"]
+mus = file["mus"]
+fillings = file["fillings"]
 close(file)
