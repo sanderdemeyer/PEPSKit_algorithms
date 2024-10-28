@@ -1,33 +1,3 @@
-include("utility.jl")
-using JLD2
-
-dτ = 1e-4
-D = 2
-χ = D
-χenv = 4
-
-unitcell = (2, 2)
-max_iterations = 30000
-
-Js = (-1, 1, -1)
-
-ctm_alg = CTMRG(;
-    tol=1e-10,
-    miniter=4,
-    maxiter=100,
-    verbosity=2,
-    svd_alg=SVDAdjoint(; fwd_alg=TensorKit.SVD(), rrule_alg=Arnoldi(; tol=1e-10)),
-    ctmrgscheme=:simultaneous,
-)
-
-H = heisenberg_XYZ(InfiniteSquare(unitcell...); Jx=-1, Jy=1, Jz=-1) # sublattice rotation to obtain single-site unit cell
-# gs energy should be -0.6694421 x unitcell = -2.6777684
-# For D = 2, \chi = 2, \chienv = 2, I get E = -0.65484
-
-
-psi = normalize(InfinitePEPS(2, D; unitcell))
-# psi = (1/norm(psi))*psi # Good normalization?
-
 function rotate_psi_l90(psi)
     psi_new = copy(psi)
     psi_new[1,1] = rotl90(psi[1,2])
@@ -158,8 +128,8 @@ function gauge_fix_north(psi, lambdas, base_space)
     return (psi, lambdas)
 end
 
-function simple_update_north(psi, lambdas, dτ, D, Js, base_space; gauge_fixing = false)
-    U = get_gate(dτ, Js)
+function simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = false)
+    U = exp(-dτ*twosite_operator)
 
     if gauge_fixing
         (psi, lambdas) = gauge_fix_north(psi, lambdas, base_space)
@@ -261,43 +231,37 @@ function translate_lambdas_diag(lambdas)
     ]
 end
 
-function get_energy(psi, H, ctm_alg, χenv)
-    env0 = CTMRGEnv(psi, ComplexSpace(χenv));
-    env = leading_boundary(env0, psi, ctm_alg);
-    return expectation_value(psi, H, env)
-end
-
-function simple_update(psi, H, dτ, D, max_iterations, ctm_alg, Js; χenv = 3*D, translate = false, gauge_fixing = false)
-    lambdas = fill(id(ℂ^D),8)
+function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; χenv = 3*D, translate = false, gauge_fixing = false, printing_freq = 100)
     base_space = psi[1,1].dom[2]
+    lambdas = fill(id(base_space),8)
 
-    energies = []
-    # Do gauge fix
     for i = 1:max_iterations
+        if (i % printing_freq) == 0
+            println("Started with iteration $(i)")
+        end
         for i = 1:4
-            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, Js, base_space; gauge_fixing = gauge_fixing)
+            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
             psi = rotate_psi_l90(psi)
             lambdas = rotate_lambdas_l90(lambdas)
         end
         psi = translate_psi_diag(psi)
         lambdas = translate_lambdas_diag(lambdas)
         for i = 1:4
-            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, Js, base_space; gauge_fixing = gauge_fixing)
+            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
             psi = rotate_psi_l90(psi)
             lambdas = rotate_lambdas_l90(lambdas)
         end
-        if mod(i, 50) == 0
-            energy = get_energy(deepcopy(psi), H, ctm_alg, χenv)
-            println("Energy after SU step $(i) is $(energy)")
-            psi = normalize(psi)
-            push!(energies, energy)
-        end
     end
-    return (psi, lambdas, energies)
+    return (psi, lambdas)
+end
+
+function get_energy(psi, H, ctm_alg, vspace_env)
+    env0 = CTMRGEnv(psi, vspace_env);
+    env = leading_boundary(env0, psi, ctm_alg);
+    return expectation_value(psi, H, env)
 end
 
 function do_CTMRG(psi, H, ctm_alg, χenv)
-
     opt_alg = PEPSOptimize(;
         boundary_alg=ctm_alg,
         optimizer=LBFGS(4; maxiter=10, gradtol=1e-3, verbosity=2),
@@ -312,5 +276,3 @@ function do_CTMRG(psi, H, ctm_alg, χenv)
     println("Energy after CTMRG is $(result.E)")
     return  result.peps, result.E_history
 end
-
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);

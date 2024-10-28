@@ -1,6 +1,36 @@
 using TensorKit, PEPSKit, KrylovKit, OptimKit
+include("Hubbard_tensors.jl")
 
-function get_gate(dτ, Js)
+function get_operators_Heisenberg(Js, lattice_size)
+    (Jx, Jy, Jz) = Js
+    physical_space = ComplexSpace(2)
+    T = ComplexF64
+    σx = TensorMap(T[0 1; 1 0], physical_space, physical_space)
+    σy = TensorMap(T[0 im; -im 0], physical_space, physical_space)
+    σz = TensorMap(T[1 0; 0 -1], physical_space, physical_space)
+    twosite = (Jx * σx ⊗ σx) + (Jy * σy ⊗ σy) + (Jz * σz ⊗ σz)
+
+    spaces = fill(domain(twosite)[1], (lattice_size, lattice_size))
+    lattice = InfiniteSquare(lattice_size, lattice_size)
+    H = LocalOperator(
+        spaces, (neighbor => twosite for neighbor in nearest_neighbours(lattice))...
+    )
+    return H, twosite
+end
+
+function get_operators_Hubbard(t, lattice_size)
+    I, pspace = ASymSpace()
+
+    lattice = fill(pspace, lattice_size, lattice_size)
+    
+    c⁺c⁻ = ASym_Hopping()
+    twosite = -t*(c⁺c⁻ + c⁺c⁻')
+    
+    H = nearest_neighbour_hamiltonian(lattice, twosite)
+    return H, twosite
+end
+
+function get_gate_Heisenberg(dτ, Js)
     (Jx, Jy, Jz) = Js
     physical_space = ComplexSpace(2)
     lattice = fill(physical_space, 1, 1)
