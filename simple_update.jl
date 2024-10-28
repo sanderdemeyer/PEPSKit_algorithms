@@ -74,9 +74,61 @@ function absorb_lambdas(left, right, lambdas; inverse = false)
     return (left_t, right_t)
 end
 
+function gauge_fix_north(psi, lambdas, base_space)
+    @tensor ML[-1; -2] := psi[1,1][7; 1 11 3 5] * conj(psi[1,1][7; 8 12 9 10]) * 
+    sqrt(lambdas[1])[1; 2] * sqrt(lambdas[8])[4; 3] * sqrt(lambdas[3])[6; 5] *
+    conj(sqrt(lambdas[1])[8; 2]) * conj(sqrt(lambdas[8])[4; 9]) * conj(sqrt(lambdas[3])[6; 10]) * 
+    sqrt(inv(lambdas[2]))[11; -2] * conj(sqrt(inv(lambdas[2]))[12; -1])
 
-function simple_update_north(psi, lambdas, dτ, χ, Js, base_space)
+    @tensor MR[-1; -2] := psi[1,2][7; 1 3 5 11] * conj(psi[1,2][7; 8 9 10 12]) * 
+    lambdas[5][1; 2] * lambdas[3][3; 4] * lambdas[4][6; 5] * 
+    conj(lambdas[5][8; 2]) * conj(lambdas[3][9; 4]) * conj(lambdas[4][6; 10]) * 
+    sqrt(inv(lambdas[2]))[-1; 11] * conj(sqrt(inv(lambdas[2]))[-2; 12])
+
+    current_space = psi[1,1].dom[2]
+    I₁ = isometry(base_space, current_space)
+    I₂ = isometry(current_space, base_space)
+
+    uL, dL, uLconj = tsvd(ML) # uLconj has the correct index order
+    uRconj, dR, uR = tsvd(MR) # uRconj has the correct index order
+
+    @tensor uL[-1; -2] := uL[-1; 1] * I₁[1; -2]
+    @tensor dL[-1; -2] := I₂[-1; 1] * dL[1; 2] * I₁[2; -2]
+    @tensor uLconj[-1; -2] := I₂[-1; 1] * uLconj[1; -2]
+
+    @tensor uRconj[-1; -2] := uRconj[-1; 1] * I₁[1; -2]
+    @tensor dR[-1; -2] := I₂[-1; 1] * dR[1; 2] * I₁[2; -2]
+    @tensor uR[-1; -2] := I₂[-1; 1] * uR[1; -2]
+
+    if (norm(uLconj' - uL) > 1e-10) || (norm(uRconj' - uR) > 1e-10)
+        @warn "Diagonalization failed"
+    end
+
+    λ′ = sqrt(dL) * uLconj * lambdas[2] * uRconj' * sqrt(dR)
+    wL, λTilde  , wR = tsvd(λ′)
+    
+    x = wL' * sqrt(dL) * uLconj
+    y = uRconj * sqrt(dR) * wR'
+
+    # println(wR * wR') # should be I    
+    @assert norm(x' * x - ML) < 1e-10
+    @assert norm(y * y' - MR) < 1e-10
+
+    lambdas[2] = λTilde / norm(λTilde)
+    @tensor psi11_new[-1; -2 -3 -4 -5] := psi[1,1][-1; -2 1 -4 -5] * inv(x)[1; 2] * sqrt(λTilde)[2; -3]
+    @tensor psi12_new[-1; -2 -3 -4 -5] := sqrt(λTilde)[-5; 1] * inv(y)[1; 2] * psi[1,2][-1; -2 -3 -4 2]
+
+    normalization = sqrt((norm(psi[1,1])^2+norm(psi[1,2])^2)/(norm(psi11_new)^2+norm(psi12_new)^2))
+    psi[1,1] = copy(normalization*psi11_new)
+    psi[1,2] = copy(normalization*psi12_new)
+
+    return (psi, lambdas)
+end
+
+function simple_update_north(psi, lambdas, dτ, D, Js, base_space)
     U = get_gate(dτ, Js)
+
+    (psi, lambdas) = gauge_fix_north(psi, lambdas, base_space)
 
     left = psi[1,1]
     right = psi[1,2]
@@ -105,7 +157,7 @@ function simple_update_north(psi, lambdas, dτ, χ, Js, base_space)
 
     @tensor Θ[-1 -2; -3 -4] := R[1 2; -1] * L[4 3; -4] * U[-2 -3; 1 4] * lambdas[2][2; 3]
 
-    (R_new, lambda_new, L_new) = tsvd(Θ, trunc = truncdim(χ))
+    (R_new, lambda_new, L_new) = tsvd(Θ, trunc = truncdim(D))
 
     current_space = left.dom[2]
     I₁ = isometry(base_space, current_space)
@@ -180,22 +232,22 @@ function get_energy(psi, H, ctm_alg, χenv)
     return expectation_value(psi, H, env)
 end
 
-function simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; χenv = 3*χ, translate = false)
-    lambdas = fill(id(ℂ^χ),8)
+function simple_update(psi, H, dτ, D, max_iterations, ctm_alg, Js; χenv = 3*D, translate = false)
+    lambdas = fill(id(ℂ^D),8)
     base_space = psi[1,1].dom[2]
 
     energies = []
     # Do gauge fix
     for i = 1:max_iterations
         for i = 1:4
-            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, χ, Js, base_space)
+            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, Js, base_space)
             psi = rotate_psi_l90(psi)
             lambdas = rotate_lambdas_l90(lambdas)
         end
         psi = translate_psi_diag(psi)
         lambdas = translate_lambdas_diag(lambdas)
         for i = 1:4
-            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, χ, Js, base_space)
+            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, Js, base_space)
             psi = rotate_psi_l90(psi)
             lambdas = rotate_lambdas_l90(lambdas)
         end
@@ -226,45 +278,4 @@ function do_CTMRG(psi, H, ctm_alg, χenv)
     return  result.peps, result.E_history
 end
 
-mkdir("test_SU")
-
-# (psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
-# file = jldopen("test_SU/1_CTMRG", "w")
-# file["energies"] = energies
-# close(file)
-
 (psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
-file = jldopen("test_SU/1_SU", "w")
-file["energies"] = energies
-close(file)
-
-#=
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
-file = jldopen("test_SU/2_SU", "w")
-file["energies"] = energies
-close(file)
-(psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
-file = jldopen("test_SU/2_CTMRG", "w")
-file["energies"] = energies
-close(file)
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
-file = jldopen("test_SU/3_SU", "w")
-file["energies"] = energies
-close(file)
-(psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
-file = jldopen("test_SU/3_CTMRG", "w")
-file["energies"] = energies
-close(file)
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
-file = jldopen("test_SU/4_SU", "w")
-file["energies"] = energies
-close(file)
-(psi, energies) = do_CTMRG(psi, H, ctm_alg, χenv)
-file = jldopen("test_SU/4_CTMRG", "w")
-file["energies"] = energies
-close(file)
-(psi, lambdas, energies) = simple_update(psi, H, dτ, χ, max_iterations, ctm_alg, Js; translate = true, χenv = χenv);
-file = jldopen("test_SU/5_SU", "w")
-file["energies"] = energies
-close(file)
-=#
