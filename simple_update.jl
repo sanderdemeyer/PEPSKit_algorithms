@@ -231,34 +231,66 @@ function translate_lambdas_diag(lambdas)
     ]
 end
 
-function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; χenv = 3*D, translate = false, gauge_fixing = false, printing_freq = 100)
-    base_space = psi[1,1].dom[2]
-    lambdas = fill(id(base_space),8)
-
-    for i = 1:max_iterations
-        if (i % printing_freq) == 0
-            println("Started with iteration $(i)")
-        end
-        for i = 1:4
-            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
-            psi = rotate_psi_l90(psi)
-            lambdas = rotate_lambdas_l90(lambdas)
-        end
-        psi = translate_psi_diag(psi)
-        lambdas = translate_lambdas_diag(lambdas)
-        for i = 1:4
-            (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
-            psi = rotate_psi_l90(psi)
-            lambdas = rotate_lambdas_l90(lambdas)
-        end
-    end
-    return (psi, lambdas)
-end
-
-function get_energy(psi, H, ctm_alg, vspace_env)
+function get_energy_CTMRG(psi, H, ctm_alg, vspace_env)
     env0 = CTMRGEnv(psi, vspace_env);
     env = leading_boundary(env0, psi, ctm_alg);
     return expectation_value(psi, H, env)
+end
+
+function get_energy_bond(left, right, lambdas, twosite)
+    return PEPSKit.@autoopt @tensor left[dAt; DAtN DAtE DAtS DAtW] * conj(left[dAb; DAbN DAbE DAbS DAbW]) * 
+    right[dBt; DBtN DBtE DBtS DAtE] * conj(right[dBb; DBbN DBbE DBbS DAbE]) * 
+    sqrt(lambdas[1])[DAtN; D1] * conj(sqrt(lambdas[1])[DAbN; D1]) *
+    sqrt(lambdas[5])[DBtN; D5] * conj(sqrt(lambdas[5])[DBbN; D5]) * 
+    sqrt(lambdas[8])[D8; DAtS] * conj(sqrt(lambdas[8])[D8; DAbS]) * 
+    sqrt(lambdas[4])[D4; DBtS] * conj(sqrt(lambdas[4])[D4; DBbS]) * 
+    sqrt(lambdas[3])[D3L; DAtW] * conj(sqrt(lambdas[3])[D3L; DAbW]) * 
+    sqrt(lambdas[3])[DBtE; D3R] * conj(sqrt(lambdas[3])[DBbE; D3R]) * twosite[dAb dBb; dAt dBt]
+end
+
+function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; χenv = 3*D, translate = false, gauge_fixing = false, printing_freq = 100)
+    base_space = psi[1,1].dom[2]
+    lambdas = fill(id(base_space),8)
+    energies = []
+    for i = 1:max_iterations
+        if (i % printing_freq) == 0
+            println("Started with iteration $(i) - current energy is $(energies[end])")
+        end
+        if (i % 50) == 0
+            energy = 0
+            for i = 1:4
+                (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
+                energy_bond = get_energy_bond(psi[1,1], psi[1,2], lambdas, twosite_operator)
+                psi = rotate_psi_l90(psi)
+                lambdas = rotate_lambdas_l90(lambdas)
+                energy += energy_bond
+            end
+            psi = translate_psi_diag(psi)
+            lambdas = translate_lambdas_diag(lambdas)
+            for i = 1:4
+                (psi, lambdas, energy_bond) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
+                energy_bond = get_energy_bond(psi[1,1], psi[1,2], lambdas, twosite_operator)
+                psi = rotate_psi_l90(psi)
+                lambdas = rotate_lambdas_l90(lambdas)
+                energy += energy_bond
+            end
+            push!(energies, energy)
+        else
+            for i = 1:4
+                (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
+                psi = rotate_psi_l90(psi)
+                lambdas = rotate_lambdas_l90(lambdas)
+            end
+            psi = translate_psi_diag(psi)
+            lambdas = translate_lambdas_diag(lambdas)
+            for i = 1:4
+                (psi, lambdas, energy_bond) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
+                psi = rotate_psi_l90(psi)
+                lambdas = rotate_lambdas_l90(lambdas)
+            end
+            end
+    end
+    return (psi, lambdas, energies)
 end
 
 function do_CTMRG(psi, H, ctm_alg, χenv)

@@ -28,13 +28,21 @@ function ASym_Hopping()
     blocks(c⁺d)[I((1))] .= [0 0; 1 0]
     blocks(c⁺d)[I((0))] .= [0 0; -1 0]
 
-    # cuold = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
-    # blocks(cuold)[I((1))] .= [1 0; 0 0]
-    # blocks(cuold)[I((0))] .= [0 0; 0 -1] # [0 0; 0 1]
+    # cu = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
+    # blocks(cu)[I((1))] .= [1 0; 0 0]
+    # blocks(cu)[I((0))] .= [0 0; 0 -1] # [0 0; 0 1]
 
-    # cdold = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
-    # blocks(cdold)[I((1))] .= [0 1; 0 0] 
-    # blocks(cdold)[I((0))] .= [0 1; 0 0] # [0 -1; 0 0]
+    # cd = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
+    # blocks(cd)[I((1))] .= [0 1; 0 0] 
+    # blocks(cd)[I((0))] .= [0 1; 0 0] # [0 -1; 0 0]
+
+    # cu = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
+    # blocks(cu)[I((1))] .= [1 0; 0 0]
+    # blocks(cu)[I((0))] .= [0 0; 0 1] # [0 0; 0 1]
+
+    # cd = TensorMap(zeros, ComplexF64, Vodd ⊗ Ps ← Ps)
+    # blocks(cd)[I((1))] .= [0 1; 0 0] 
+    # blocks(cd)[I((0))] .= [0 -1; 0 0] # [0 -1; 0 0]
 
     cu = permute(c⁺u', ((2,1), (3,)))
     cd = permute(c⁺d', ((2,1), (3,)))
