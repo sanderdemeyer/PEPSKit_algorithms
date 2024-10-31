@@ -2,7 +2,7 @@ using JLD2
 include("utility.jl")
 include("simple_update.jl")
 
-dτ = 1e-4
+dτ = 1e-5
 D = 2
 χenv = 8
 

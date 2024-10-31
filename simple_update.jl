@@ -248,12 +248,12 @@ function get_energy_bond(left, right, lambdas, twosite)
     sqrt(lambdas[3])[DBtE; D3R] * conj(sqrt(lambdas[3])[DBbE; D3R]) * twosite[dAb dBb; dAt dBt]
 end
 
-function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; χenv = 3*D, translate = false, gauge_fixing = false, printing_freq = 100)
+function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; χenv = 3*D, translate = false, gauge_fixing = false, printing_freq = 100, dτ_decrease = 10^(1/1000))
     base_space = psi[1,1].dom[2]
     lambdas = fill(id(base_space),8)
     energies = []
     for i = 1:max_iterations
-        if (i % printing_freq) == 0
+        if (i % printing_freq) == 0 && (i != 0)
             println("Started with iteration $(i) - current energy is $(energies[end])")
         end
         if (i % 50) == 0
@@ -288,7 +288,11 @@ function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; �
                 psi = rotate_psi_l90(psi)
                 lambdas = rotate_lambdas_l90(lambdas)
             end
-            end
+        end
+        dτ /= dτ_decrease
+        if dτ < 1e-7
+            dτ_decrease = 1
+        end
     end
     return (psi, lambdas, energies)
 end
