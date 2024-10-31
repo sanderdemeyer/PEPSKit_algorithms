@@ -253,7 +253,7 @@ function simple_update(psi, twosite_operator, dÏ„, D, max_iterations, ctm_alg; Ï
     lambdas = fill(id(base_space),8)
     energies = []
     for i = 1:max_iterations
-        if (i % printing_freq) == 0 && (i != 0)
+        if (i % printing_freq) == 0 && (i > 50)
             println("Started with iteration $(i) - current energy is $(energies[end])")
         end
         if (i % 50) == 0
