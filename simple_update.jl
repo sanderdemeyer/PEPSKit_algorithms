@@ -268,7 +268,7 @@ function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; �
             psi = translate_psi_diag(psi)
             lambdas = translate_lambdas_diag(lambdas)
             for i = 1:4
-                (psi, lambdas, energy_bond) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
+                (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
                 energy_bond = get_energy_bond(psi[1,1], psi[1,2], lambdas, twosite_operator)
                 psi = rotate_psi_l90(psi)
                 lambdas = rotate_lambdas_l90(lambdas)
@@ -284,7 +284,7 @@ function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; �
             psi = translate_psi_diag(psi)
             lambdas = translate_lambdas_diag(lambdas)
             for i = 1:4
-                (psi, lambdas, energy_bond) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
+                (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
                 psi = rotate_psi_l90(psi)
                 lambdas = rotate_lambdas_l90(lambdas)
             end
