@@ -4,7 +4,7 @@ include("simple_update.jl")
 
 dτ = 1e-5
 D = 2
-χenv = 8
+χenv = 4
 
 lattice_size = 2
 max_iterations = 200

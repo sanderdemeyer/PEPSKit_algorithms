@@ -248,7 +248,7 @@ function get_energy_bond(left, right, lambdas, twosite)
     sqrt(lambdas[3])[DBtE; D3R] * conj(sqrt(lambdas[3])[DBbE; D3R]) * twosite[dAb dBb; dAt dBt]
 end
 
-function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; χenv = 3*D, translate = false, gauge_fixing = false, printing_freq = 100, dτ_decrease = 10^(1/1000))
+function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; χenv = 3*D^2, translate = false, gauge_fixing = false, printing_freq = 100, dτ_decrease = 10^(1/1000))
     base_space = psi[1,1].dom[2]
     lambdas = fill(id(base_space),8)
     energies = []
@@ -274,7 +274,9 @@ function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; �
                 lambdas = rotate_lambdas_l90(lambdas)
                 energy += energy_bond
             end
-            push!(energies, energy)
+            new_psi, energy_CTMRG = do_CTMRG(psi, H, ctm_alg, χenv)
+            push!(energies, [energy energy_CTMRG[end]])
+
         else
             for i = 1:4
                 (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
