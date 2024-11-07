@@ -238,7 +238,7 @@ function get_energy_CTMRG(psi, H, ctm_alg, vspace_env)
 end
 
 function get_energy_bond(left, right, lambdas, twosite)
-    return PEPSKit.@autoopt @tensor left[dAt; DAtN DAtE DAtS DAtW] * conj(left[dAb; DAbN DAbE DAbS DAbW]) * 
+    PEPSKit.@autoopt @tensor energy = left[dAt; DAtN DAtE DAtS DAtW] * conj(left[dAb; DAbN DAbE DAbS DAbW]) * 
     right[dBt; DBtN DBtE DBtS DAtE] * conj(right[dBb; DBbN DBbE DBbS DAbE]) * 
     sqrt(lambdas[1])[DAtN; D1] * conj(sqrt(lambdas[1])[DAbN; D1]) *
     sqrt(lambdas[5])[DBtN; D5] * conj(sqrt(lambdas[5])[DBbN; D5]) * 
@@ -246,17 +246,27 @@ function get_energy_bond(left, right, lambdas, twosite)
     sqrt(lambdas[4])[D4; DBtS] * conj(sqrt(lambdas[4])[D4; DBbS]) * 
     sqrt(lambdas[3])[D3L; DAtW] * conj(sqrt(lambdas[3])[D3L; DAbW]) * 
     sqrt(lambdas[3])[DBtE; D3R] * conj(sqrt(lambdas[3])[DBbE; D3R]) * twosite[dAb dBb; dAt dBt]
+
+    PEPSKit.@autoopt @tensor norm = left[dAt; DAtN DAtE DAtS DAtW] * conj(left[dAt; DAbN DAbE DAbS DAbW]) * 
+    right[dBt; DBtN DBtE DBtS DAtE] * conj(right[dBt; DBbN DBbE DBbS DAbE]) * 
+    sqrt(lambdas[1])[DAtN; D1] * conj(sqrt(lambdas[1])[DAbN; D1]) *
+    sqrt(lambdas[5])[DBtN; D5] * conj(sqrt(lambdas[5])[DBbN; D5]) * 
+    sqrt(lambdas[8])[D8; DAtS] * conj(sqrt(lambdas[8])[D8; DAbS]) * 
+    sqrt(lambdas[4])[D4; DBtS] * conj(sqrt(lambdas[4])[D4; DBbS]) * 
+    sqrt(lambdas[3])[D3L; DAtW] * conj(sqrt(lambdas[3])[D3L; DAbW]) * 
+    sqrt(lambdas[3])[DBtE; D3R] * conj(sqrt(lambdas[3])[DBbE; D3R])
+
+    println("energy of bond is $(energy)/$(norm) = $(energy/norm)")
+    return energy/norm
 end
 
-function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; χenv = 3*D^2, translate = false, gauge_fixing = false, printing_freq = 100, dτ_decrease = 10^(1/1000))
+function simple_update(psi, twosite_operator, dτ, max_iterations, ctm_alg; χenv = 3*D^2, gauge_fixing = false, printing_freq = 200, dτ_decrease = 10^(1/1000))
+    D = dim(psi[1,1].dom[1])
     base_space = psi[1,1].dom[2]
     lambdas = fill(id(base_space),8)
     energies = []
     for i = 1:max_iterations
-        if (i % printing_freq) == 0 && (i > 50)
-            println("Started with iteration $(i) - current energy is $(energies[end])")
-        end
-        if (i % 50) == 0
+        if (i % printing_freq) == 0
             energy = 0
             for i = 1:4
                 (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
@@ -276,7 +286,7 @@ function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; �
             end
             new_psi, energy_CTMRG = do_CTMRG(psi, H, ctm_alg, χenv)
             push!(energies, [energy energy_CTMRG[end]])
-
+            println("Iteration $(i) - current energy is $(energy) using SU, or $(energy_CTMRG) using CTMRG")
         else
             for i = 1:4
                 (psi, lambdas) = simple_update_north(psi, lambdas, dτ, D, twosite_operator, base_space; gauge_fixing = gauge_fixing)
@@ -297,6 +307,10 @@ function simple_update(psi, twosite_operator, dτ, D, max_iterations, ctm_alg; �
         end
     end
     return (psi, lambdas, energies)
+end
+
+function try_fin(x, f, g)
+    return x, f, g
 end
 
 function do_CTMRG(psi, H, ctm_alg, χenv)
