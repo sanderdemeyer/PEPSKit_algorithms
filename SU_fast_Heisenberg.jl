@@ -2,12 +2,12 @@ using JLD2
 include("utility.jl")
 include("simple_update.jl")
 
-dτ = 1e-5
+dτ = 1e-4
 D = 2
 χenv = 4
 
 lattice_size = 2
-max_iterations = 200
+max_iterations = 10
 
 Js = (-1, 1, -1)
 
@@ -25,7 +25,7 @@ ctm_alg = CTMRG(;
 psi = normalize(InfinitePEPS(2, D; unitcell=(lattice_size,lattice_size)))
 vspace_env = ComplexSpace(χenv)
 
-(psi, lambdas, energies) = simple_update(psi, twosite, dτ, D, max_iterations, ctm_alg; translate = true, χenv = χenv, printing_freq = 5);
+(psi, lambdas, energies) = simple_update(psi, twosite, dτ, max_iterations, ctm_alg; χenv = χenv, printing_freq = 5);
 
 # file = jldopen("SU_Heisenberg_D_$(D)_chienv_$(χenv).jld2", "w")
 # file["psi"] = copy(psi)
