@@ -1,3 +1,261 @@
+function HubbardSpaces(charge, spin, Ds; P=1, Q=1)
+    if charge == "U1" 
+        if spin == "U1" # checked and correct
+            I = fℤ₂ ⊠ U1Irrep ⊠ U1Irrep
+            Ps = Vect[I]((0, -P, 0) => 1, (1, Q-P, 1) => 1, (1, Q-P, -1) => 1, (0, 2*Q-P, 0) => 1)
+        elseif spin == "SU2"
+            I = fℤ₂ ⊠ U1Irrep ⊠ SU2Irrep
+            Ps = Vect[I]((0, -P, 0) => 1, (1, Q-P, 1 // 2) => 1, (0, 2*Q-P, 0) => 1)
+        elseif spin == nothing # checked and correct
+            I = fℤ₂ ⊠ U1Irrep
+            Ps = Vect[I]((0, -P) => 1, (1, Q-P) => 2, (0, 2*Q-P) => 1)
+        end
+    elseif charge == nothing
+        if spin == "U1" # checked and correct
+            I = fℤ₂ ⊠ U1Irrep
+            Ps = Vect[I]((0, 0) => 2, (1, 1) => 1, (1, -1) => 1)
+            # Vs = Vect[I]((0, 0) => Ds[1], (1, 1) => Ds[2], (1, -1) => Ds[3])
+        elseif spin == "SU2"
+            I = fℤ₂ ⊠ SU2Irrep
+            Ps = Vect[I]((0, 0) => 2, (1, 1 // 2) => 2)
+            # Vs = Vect[I]((0, 0) => Ds[1], (1, 1 // 2) => Ds[2])
+        elseif spin == nothing # checked and correct
+            I = fℤ₂
+            Ps = Vect[I]((0) => 2, (1) => 2)
+            # Vs = Vect[I]((0) => Ds[1], (1) => Ds[2])
+        end
+    end
+    return I, Ps
+end
+
+function HubbardVirtualSpaces(charge, spin, L, max_dimension::Int64; P = 1, Q = 1)
+    I, pspace = HubbardSpaces(charge, spin, 0; P = P, Q = Q)
+    Ps = fill(pspace, L)
+    Vmax_base = Vect[I]
+    if charge == "U1"
+        if spin == "U1"
+            loops = [0:1, -(L*P):1:(L*P), -3:1:3]
+            trivial = (0,0,0)
+        elseif spin == "SU2"
+            loops = [0:1, -(L*P):1:(L*P), 0:1//2:3//2]
+            trivial = (0,0,0)
+        elseif spin == nothing
+            loops = [0:1, -(L*P):1:(L*P)]
+            trivial = (0,0)
+        end
+    elseif charge == nothing
+        if spin == "U1"
+            loops = [0:1, -3:1:3]
+            trivial = (0,0)
+        elseif spin == "SU2"
+            loops = [0:1, 0:1//2:3//2]
+            trivial = (0,0)
+        elseif spin == nothing
+            return fill(Vect[I](0 => floor(max_dimension/2), 1 => floor(max_dimension/2)), L)
+        end
+    end
+
+    V_right = accumulate(fuse, Ps)
+    
+    V_l = accumulate(fuse, dual.(Ps); init=one(first(Ps)))
+    V_left = reverse(V_l)
+    len = length(V_left)
+    step = length(V_left)-1
+    V_left = [view(V_left,len-step+1:len); view(V_left,1:len-step)]   # same as circshift(V_left,1)
+
+    V = TensorKit.infimum.(V_left, V_right)
+
+    Vmax = Vmax_base(trivial=>1)     # find maximal virtual space
+
+    if (charge == nothing) && (spin == nothing)
+        for a = loops
+            Vmax = Vmax_base(a => max_dimension) ⊕ Vmax
+        end
+    else
+        for a in Iterators.product(loops...)
+            Vmax = Vmax_base(a => max_dimension) ⊕ Vmax
+        end
+    end
+
+    V_max = copy(V)      # if no copy(), V will change along when V_max is changed
+    println(V_max)
+    for i in 1:length(V_right)
+        V_max[i] = Vmax
+    end
+
+    V_trunc = TensorKit.infimum.(V,V_max)
+    vspaces = copy(V_trunc)
+    for (i,vsp) in enumerate(V_trunc)
+        dict = vsp.dims
+        number_of_spaces = length(dict)
+        println(dict)
+        new_dict = Dict(sp => floor(max_dimension/number_of_spaces) for sp in dict.keys)
+        vspaces[i] = Vmax_base(new_dict)
+    end
+
+    return vspaces
+end
+
+function HubbardOSInteraction(charge, spin; P=1, Q=1)
+    I, Ps = HubbardSpaces(charge, spin, 0; P=1, Q=1)
+    onesite = TensorMap(zeros, ComplexF64, Ps ← Ps)
+
+    if charge == "U1"
+        if spin == "U1"
+            blocks(onesite)[I((0, 2*Q-P, 0))] .= 1
+        elseif spin == "SU2"
+            blocks(onesite)[I((0, 2*Q-P, 0))] .= 1
+        elseif spin == nothing
+            blocks(onesite)[I((0, 2*Q-P))] .= 1
+        end
+    elseif charge == nothing
+        if spin == "U1"
+            blocks(onesite)[I((0,0))] .= [0 0; 0 1]
+        elseif spin == "SU2"
+            blocks(onesite)[I((0,0))] .= [0 0; 0 1]
+        elseif spin == nothing
+            blocks(onesite)[I((0))] .= [0 0; 0 1]
+        end
+    end
+    return onesite
+end
+
+function HubbardHopping(charge, spin; P=1, Q=1)
+    I, Ps = HubbardSpaces(charge, spin, 0; P=1, Q=1)
+    onesite = TensorMap(zeros, ComplexF64, Ps ← Ps)
+
+    if charge == "U1"
+        if spin == "U1"
+            Vup = Vect[I]((1, Q, 1) => 1)
+            Vdown = Vect[I]((1, Q, -1) => 1)
+        
+            c⁺u = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vup)
+            blocks(c⁺u)[I((1, Q-P, 1))] .= 1
+            blocks(c⁺u)[I((0, 2*Q-P, 0))] .= 1
+            cu = TensorMap(zeros, ComplexF64, Vup ⊗ Ps ← Ps)
+            blocks(cu)[I((1, Q-P, 1))] .= 1
+            blocks(cu)[I((0, 2*Q-P, 0))] .= 1
+            
+            c⁺d = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vdown)
+            blocks(c⁺d)[I((1, Q-P, -1))] .= 1
+            blocks(c⁺d)[I((0, 2*Q-P, 0))] .= 1
+            cd = TensorMap(zeros, ComplexF64, Vdown ⊗ Ps ← Ps)
+            blocks(cd)[I((1, Q-P, -1))] .= 1
+            blocks(cd)[I((0, 2*Q-P, 0))] .= 1
+        
+            @planar twosite_up[-1 -2; -3 -4] := c⁺u[-1; -3 1] * cu[1 -2; -4]
+            @planar twosite_down[-1 -2; -3 -4] := c⁺d[-1; -3 1] * cd[1 -2; -4]
+            twosite = twosite_up + twosite_down
+
+            @tensor nup[-1; -2] := cu[2 1; -2] * c⁺u[-1; 1 2]
+            @tensor ndown[-1; -2] := cd[2 1; -2] * c⁺d[-1; 1 2]
+            n = nup + ndown    
+        elseif spin == "SU2"
+            Vs = Vect[I]((1, Q, 1 // 2) => 1)
+
+            c⁺ = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vs)
+            blocks(c⁺)[I((1, Q-P, 1 // 2))] .= 1
+            blocks(c⁺)[I((0, 2*Q-P, 0))] .= sqrt(2)
+    
+            c = TensorMap(zeros, ComplexF64, Vs ⊗ Ps ← Ps)
+            blocks(c)[I((1, Q-P, 1 // 2))] .= 1
+            blocks(c)[I((0, 2*Q-P, 0))] .= sqrt(2)
+    
+            @planar twosite[-1 -2; -3 -4] := c⁺[-1; -3 1] * c[1 -2; -4]
+
+            @tensor n[-1; -2] := c[2 1; -2] * c⁺[-1; 1 2]
+        elseif spin == nothing
+            firstmethod = false
+            if firstmethod
+                Vs = Vect[I]((1, Q) => 1)
+
+                c⁺ = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vs)
+                blocks(c⁺)[I((1, Q-P))] .= 1
+                blocks(c⁺)[I((0, 2*Q-P))] .= sqrt(2)
+        
+                c = TensorMap(zeros, ComplexF64, Vs ⊗ Ps ← Ps)
+                blocks(c)[I((1, Q-P))] .= 1
+                blocks(c)[I((0, 2*Q-P))] .= sqrt(2)
+        
+                @planar twosite[-1 -2; -3 -4] := c⁺[-1; -3 1] * c[1 -2; -4]     
+                
+                @tensor n[-1; -2] := c[2 1; -2] * c⁺[-1; 1 2]
+            else
+                Vodd = Vect[I]((1, Q) => 1)
+    
+                c⁺u = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
+                blocks(c⁺u)[I((1, Q-P))] .= [1; 0;;]
+                blocks(c⁺u)[I((0, 2*Q-P))] .= [0 1]
+            
+                c⁺d = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
+                blocks(c⁺d)[I((1, Q-P))] .= [0; 1;;]
+                blocks(c⁺d)[I((0, 2*Q-P))] .= [-1 0]
+                    
+                cu = permute(c⁺u', ((2,1), (3,)))
+                cd = permute(c⁺d', ((2,1), (3,)))
+            
+                @planar twosite_up[-1 -2; -3 -4] := c⁺u[-1; -3 1] * cu[1 -2; -4]
+                @planar twosite_down[-1 -2; -3 -4] := c⁺d[-1; -3 1] * cd[1 -2; -4]
+                twosite = twosite_up + twosite_down
+
+                @tensor nup[-1; -2] := cu[2 1; -2] * c⁺u[-1; 1 2]
+                @tensor ndown[-1; -2] := cd[2 1; -2] * c⁺d[-1; 1 2]
+                n = nup + ndown    
+            end
+        end
+    elseif charge == nothing
+        if spin == "U1"            
+            Vup = Vect[I]((1, 1) => 1)
+            Vdown = Vect[I]((1, -1) => 1)
+        
+            c⁺u = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vup)
+            blocks(c⁺u)[I((1, 1))] .= [1 0]
+            blocks(c⁺u)[I((0, 0))] .= [0; 1;;]
+            
+            c⁺d = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vdown)
+            println(convert(Array, blocks(c⁺d)[I((1, -1))]))
+            println(convert(Array, blocks(c⁺d)[I((0, 0))]))
+            blocks(c⁺d)[I((1, -1))] .= [1 0]
+            blocks(c⁺d)[I((0, 0))] .= [0; -1;;]
+        
+            cu = permute(c⁺u', ((2,1), (3,)))
+            cd = permute(c⁺d', ((2,1), (3,)))
+
+            @planar twosite_up[-1 -2; -3 -4] := c⁺u[-1; -3 1] * cu[1 -2; -4]
+            @planar twosite_down[-1 -2; -3 -4] := c⁺d[-1; -3 1] * cd[1 -2; -4]
+            twosite = twosite_up + twosite_down
+
+            @tensor nup[-1; -2] := cu[2 1; -2] * c⁺u[-1; 1 2]
+            @tensor ndown[-1; -2] := cd[2 1; -2] * c⁺d[-1; 1 2]
+            n = nup + ndown
+        elseif spin == "SU2"
+            @error "TBA"
+        elseif spin == nothing
+            Vodd = Vect[I]((1) => 1)
+
+            c⁺u = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
+            blocks(c⁺u)[I((1))] .= [1 0; 0 0]
+            blocks(c⁺u)[I((0))] .= [0 0; 0 1]
+        
+            c⁺d = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vodd)
+            blocks(c⁺d)[I((1))] .= [0 0; 1 0]
+            blocks(c⁺d)[I((0))] .= [0 0; -1 0]
+                
+            cu = permute(c⁺u', ((2,1), (3,)))
+            cd = permute(c⁺d', ((2,1), (3,)))
+        
+            @planar twosite_up[-1 -2; -3 -4] := c⁺u[-1; -3 1] * cu[1 -2; -4]
+            @planar twosite_down[-1 -2; -3 -4] := c⁺d[-1; -3 1] * cd[1 -2; -4]
+            twosite = twosite_up + twosite_down
+
+            @tensor nup[-1; -2] := cu[2 1; -2] * c⁺u[-1; 1 2]
+            @tensor ndown[-1; -2] := cd[2 1; -2] * c⁺d[-1; 1 2]
+            n = nup + ndown
+        end
+    end
+    return twosite, n
+end
+
 function SymSpace(P,Q,spin)
     if spin
         I = fℤ₂ ⊠ U1Irrep ⊠ U1Irrep
@@ -6,7 +264,6 @@ function SymSpace(P,Q,spin)
         I = fℤ₂ ⊠ U1Irrep ⊠ SU2Irrep 
         Ps = Vect[I]((0, -P, 0) => 1, (1, Q-P, 1 // 2) => 1, (0, 2*Q-P, 0) => 1)
     end
-
     return I, Ps
 end
 
