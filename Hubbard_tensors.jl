@@ -98,22 +98,15 @@ function HubbardVirtualSpaces(charge, spin, L, Dmax::Int64; P = 1, Q = 1)
     for i in 1:length(V_right)
         V_max[i] = Vmax
     end
-    println("V_max = $(V_max), done")
-    println("V = $(V), done")
 
     V_trunc = TensorKit.infimum.(V,V_max)
-    println("V_trunc = $(V_trunc), done")
     vspaces = copy(V_trunc)
     for (i,vsp) in enumerate(V_trunc)
         dict = vsp.dims
         number_of_spaces = length(dict)
-        println(dict.values)
-        println(Dmax)
-        println(typeof(dict.values))
         Ds = rescale_bond_dimensions(dict.values, Dmax-1)
         keys = push!(dict.keys, trivial)
         push!(Ds, 1)
-        println((Ds))
         new_dict = Dict(sp => D for (sp,D) in zip(keys,Ds))
         vspaces[i] = Vmax_base(new_dict)
     end
