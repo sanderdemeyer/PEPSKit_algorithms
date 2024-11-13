@@ -9,14 +9,10 @@ using JLD2
 
 include("Hubbard_tensors.jl")
 
-function iterate(psi_init, h, opt_alg, env_init, maxiter)
-    io = open("Hubbard_t_1_U_0.csv", "w")
-    mkdir("Hubbard_t_1_U_0_tensors_D_6")
+function iterate(psi_init, h, opt_alg, env_init, maxiter, name)
+    mkdir(name)
     result = fixedpoint(psi_init, h, opt_alg, env_init)
-    print(a)
-    writedlm(io, [1 result.E norm(result.grad)])
-    close(io)
-    file = jldopen("Hubbard_t_1_U_0_tensors_D_6/1.jld2", "w")
+    file = jldopen(name*"/1.jld2", "w")
     file["grad"] = copy(result.grad)
     file["E"] = result.E
     file["psi"] = result.peps
@@ -27,9 +23,7 @@ function iterate(psi_init, h, opt_alg, env_init, maxiter)
     for i = 2:maxiter
         result = fixedpoint(result.peps, h, opt_alg, result.env)
         println("E = $(result.E), grad = $(result.grad)")
-        writedlm(io, [i result.E norm(result.grad)])
-        close(io)
-        file = jldopen("Hubbard_t_1_U_0_tensors_D_6/$(i).jld2", "w")
+        file = jldopen(name*"/$(i).jld2", "w")
         file["grad"] = copy(result.grad)
         file["E"] = result.E
         file["psi"] = result.peps
@@ -37,14 +31,13 @@ function iterate(psi_init, h, opt_alg, env_init, maxiter)
         file["norm_grad"] = norm(result.grad)
         close(file)
     end
-    close(io)
 end
 
 t = 1
 U = 0
 P = 1
 Q = 1
-charge = nothing
+charge = "U1"
 spin = nothing
 
 lattice_size = 2
@@ -62,14 +55,17 @@ h = nearest_neighbour_hamiltonian(lattice, twosite_operator)
 D = 6
 χenv = 12 # Yuchi uses 3D^2
 
-vspace = Vect[I]((0) => D/2, (1) => D/2)
-vspace_env = Vect[I]((0) => χenv/2, (1) => χenv/2)
+# vspace = Vect[I]((0) => D/2, (1) => D/2)
+# vspace_env = Vect[I]((0) => χenv/2, (1) => χenv/2)
+
+vspaces = HubbardVirtualSpaces(charge, spin, lattice_size, D; P = P, Q = Q)
+vspaces_env = HubbardVirtualSpaces(charge, spin, lattice_size, χenv; P = P, Q = Q)
 
 Pspaces = fill(pspace, lattice_size, lattice_size)
-Nspaces = Espaces = fill(vspace, lattice_size, lattice_size)
+Nspaces = Espaces = vspaces
 
 psi_init = InfinitePEPS(randn, ComplexF64, Pspaces, Nspaces, Espaces)
-env0 = CTMRGEnv(psi_init, vspace_env)
+env0 = CTMRGEnv(psi_init, vspaces_env)
 
 ctm_alg = CTMRG(;
     tol=1e-10,
@@ -96,6 +92,8 @@ opt_alg = PEPSOptimize(;
 
 # env_init = leading_boundary(env0, psi_init, ctm_alg);
 
-maxiter = 1
-result = iterate(psi_init, h, opt_alg, env0, maxiter)
+maxiter = 2
+
+name = "Hubbard_t_1_U_0_tensors_D_$(D)_chi_$(χenv)"
+result = iterate(psi_init, h, opt_alg, env0, maxiter, name)
 # result = iterate(psi_init, h, opt_alg, env_init, maxiter)

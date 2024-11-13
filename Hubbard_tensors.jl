@@ -28,7 +28,24 @@ function HubbardSpaces(charge, spin, Ds; P=1, Q=1)
     return I, Ps
 end
 
-function HubbardVirtualSpaces(charge, spin, L, max_dimension::Int64; P = 1, Q = 1)
+function rescale_bond_dimensions(input_list::Vector{Int64}, Dmax::Int64)
+    naive_list = input_list .* (Dmax/sum(input_list))
+    D_list = zeros(Int, length(input_list))
+    for (i,e) in enumerate(naive_list)
+        D_list[i] = floor(e)
+        naive_list[i] -= floor(e)
+    end
+    missing_D = Dmax - sum(D_list)
+    while missing_D > 0
+        max_value, index = findmax(naive_list)
+        D_list[index] += 1
+        naive_list[index] -= 1
+        missing_D -= 1
+    end
+    return D_list
+end
+
+function HubbardVirtualSpaces(charge, spin, L, Dmax::Int64; P = 1, Q = 1)
     I, pspace = HubbardSpaces(charge, spin, 0; P = P, Q = Q)
     Ps = fill(pspace, L)
     Vmax_base = Vect[I]
@@ -51,7 +68,7 @@ function HubbardVirtualSpaces(charge, spin, L, max_dimension::Int64; P = 1, Q = 
             loops = [0:1, 0:1//2:3//2]
             trivial = (0,0)
         elseif spin == nothing
-            return fill(Vect[I](0 => floor(max_dimension/2), 1 => floor(max_dimension/2)), L)
+            return fill(Vect[I](0 => floor(Dmax/2), 1 => floor(Dmax/2)), L)
         end
     end
 
@@ -69,31 +86,39 @@ function HubbardVirtualSpaces(charge, spin, L, max_dimension::Int64; P = 1, Q = 
 
     if (charge == nothing) && (spin == nothing)
         for a = loops
-            Vmax = Vmax_base(a => max_dimension) ⊕ Vmax
+            Vmax = Vmax_base(a => Dmax) ⊕ Vmax
         end
     else
         for a in Iterators.product(loops...)
-            Vmax = Vmax_base(a => max_dimension) ⊕ Vmax
+            Vmax = Vmax_base(a => Dmax) ⊕ Vmax
         end
     end
 
     V_max = copy(V)      # if no copy(), V will change along when V_max is changed
-    println(V_max)
     for i in 1:length(V_right)
         V_max[i] = Vmax
     end
+    println("V_max = $(V_max), done")
+    println("V = $(V), done")
 
     V_trunc = TensorKit.infimum.(V,V_max)
+    println("V_trunc = $(V_trunc), done")
     vspaces = copy(V_trunc)
     for (i,vsp) in enumerate(V_trunc)
         dict = vsp.dims
         number_of_spaces = length(dict)
-        println(dict)
-        new_dict = Dict(sp => floor(max_dimension/number_of_spaces) for sp in dict.keys)
+        println(dict.values)
+        println(Dmax)
+        println(typeof(dict.values))
+        Ds = rescale_bond_dimensions(dict.values, Dmax-1)
+        keys = push!(dict.keys, trivial)
+        push!(Ds, 1)
+        println((Ds))
+        new_dict = Dict(sp => D for (sp,D) in zip(keys,Ds))
         vspaces[i] = Vmax_base(new_dict)
     end
 
-    return vspaces
+    return [vspaces[mod1(i + j - 1,L)] for i in 1:L, j in 1:L]
 end
 
 function HubbardOSInteraction(charge, spin; P=1, Q=1)
