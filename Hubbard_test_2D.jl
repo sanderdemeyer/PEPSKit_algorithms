@@ -9,36 +9,24 @@ using JLD2
 
 include("Hubbard_tensors.jl")
 
-function iterate(psi_init, h, opt_alg, env_init, maxiter, name)
-    mkdir(name)
-    result = fixedpoint(psi_init, h, opt_alg, env_init)
-    file = jldopen(name*"/1.jld2", "w")
-    file["grad"] = copy(result.grad)
-    file["E"] = result.E
-    file["psi"] = result.peps
-    file["grad"] = result.grad
-    file["norm_grad"] = norm(result.grad)
+function custom_finalize_base(name, x, f, g, numiter)
+    file = jldopen(name*"/$(numiter)", "w")
+    file["psi"] = copy(x)
+    file["E"] = f
+    file["grad"] = g
+    file["norm_grad"] = norm(grad)
     close(file)
-
-    for i = 2:maxiter
-        result = fixedpoint(result.peps, h, opt_alg, result.env)
-        println("E = $(result.E), grad = $(result.grad)")
-        file = jldopen(name*"/$(i).jld2", "w")
-        file["grad"] = copy(result.grad)
-        file["E"] = result.E
-        file["psi"] = result.peps
-        file["grad"] = result.grad
-        file["norm_grad"] = norm(result.grad)
-        close(file)
-    end
+    return x, f, g
 end
-
+    
 t = 1
 U = 0
-P = 1
-Q = 1
-charge = "U1"
+P = Q = 1
+charge = nothing
 spin = nothing
+
+D = 2
+χenv = 4 # Yuchi uses 3D^2
 
 lattice_size = 2
 
@@ -52,8 +40,6 @@ onsite_operator = U*HubbardOSInteraction(charge, spin; P = P, Q = Q)
 
 h = nearest_neighbour_hamiltonian(lattice, twosite_operator)
 
-D = 6
-χenv = 12 # Yuchi uses 3D^2
 
 # vspace = Vect[I]((0) => D/2, (1) => D/2)
 # vspace_env = Vect[I]((0) => χenv/2, (1) => χenv/2)
@@ -76,24 +62,32 @@ ctm_alg = CTMRG(;
     ctmrgscheme=:simultaneous,
 )
 
-# opt_alg = PEPSOptimize(;
-#     boundary_alg=ctm_alg,
-#     optimizer=LBFGS(4; maxiter=1, gradtol=1e-4, verbosity=2),
-#     gradient_alg=LinSolver(; solver=GMRES(; tol=1e-6), iterscheme=:fixed),
-#     reuse_env=true,
-# )
-
 opt_alg = PEPSOptimize(;
     boundary_alg=ctm_alg,
-    optimizer=ConjugateGradient(; maxiter=2, gradtol=1e-4, verbosity=2),
+    optimizer=LBFGS(4; maxiter=1, gradtol=1e-4, verbosity=2),
     gradient_alg=LinSolver(; solver=GMRES(; tol=1e-6), iterscheme=:fixed),
     reuse_env=true,
 )
 
-# env_init = leading_boundary(env0, psi_init, ctm_alg);
+opt_alg_geomsum = PEPSOptimize(;
+    boundary_alg=ctm_alg,
+    optimizer=LBFGS(4; maxiter=1, gradtol=1e-4, verbosity=2),
+    gradient_alg=GeomSum(; tol=1e-8, iterscheme=:fixed),
+    reuse_env=true,
+)
 
-maxiter = 2
+# opt_alg = PEPSOptimize(;
+#     boundary_alg=ctm_alg,
+#     optimizer=ConjugateGradient(; maxiter=2, gradtol=1e-4, verbosity=2),
+#     gradient_alg=LinSolver(; solver=GMRES(; tol=1e-6), iterscheme=:fixed),
+#     reuse_env=true,
+# )
 
-name = "Hubbard_t_1_U_0_tensors_D_$(D)_chi_$(χenv)"
-result = iterate(psi_init, h, opt_alg, env0, maxiter, name)
-# result = iterate(psi_init, h, opt_alg, env_init, maxiter)
+env_init = leading_boundary(env0, psi_init, ctm_alg);
+maxiter = 100
+name = "Hubbard_t_$(t)_U_$(U)_tensors_D_$(D)_chi_$(χenv)_charge_$(charge)_spin_$(spin)"
+
+custom_finalize! = (x, f, g, numiter) -> custom_finalize_base(name, x, f, g, numiter)
+
+mkdir(name)
+result = fixedpoint(psi_init, h, opt_alg_geomsum, env_init; finalize! = custom_finalize!)

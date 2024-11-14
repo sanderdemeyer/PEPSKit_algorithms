@@ -68,7 +68,8 @@ function HubbardVirtualSpaces(charge, spin, L, Dmax::Int64; P = 1, Q = 1)
             loops = [0:1, 0:1//2:3//2]
             trivial = (0,0)
         elseif spin == nothing
-            return fill(Vect[I](0 => floor(Dmax/2), 1 => floor(Dmax/2)), L)
+            loops = 0:1
+            trivial = (0)
         end
     end
 
@@ -90,6 +91,7 @@ function HubbardVirtualSpaces(charge, spin, L, Dmax::Int64; P = 1, Q = 1)
         end
     else
         for a in Iterators.product(loops...)
+            println(a)
             Vmax = Vmax_base(a => Dmax) ⊕ Vmax
         end
     end
@@ -98,19 +100,22 @@ function HubbardVirtualSpaces(charge, spin, L, Dmax::Int64; P = 1, Q = 1)
     for i in 1:length(V_right)
         V_max[i] = Vmax
     end
-
     V_trunc = TensorKit.infimum.(V,V_max)
     vspaces = copy(V_trunc)
     for (i,vsp) in enumerate(V_trunc)
         dict = vsp.dims
         number_of_spaces = length(dict)
-        Ds = rescale_bond_dimensions(dict.values, Dmax-1)
-        keys = push!(dict.keys, trivial)
-        push!(Ds, 1)
+        if (charge == nothing) && (spin == nothing)
+            Ds = rescale_bond_dimensions([1, 1], Dmax)
+            keys = [0 1]
+        else
+            Ds = rescale_bond_dimensions(dict.values, Dmax-1)
+            keys = push!(dict.keys, trivial)
+            push!(Ds, 1)
+            end
         new_dict = Dict(sp => D for (sp,D) in zip(keys,Ds))
         vspaces[i] = Vmax_base(new_dict)
     end
-
     return [vspaces[mod1(i + j - 1,L)] for i in 1:L, j in 1:L]
 end
 
